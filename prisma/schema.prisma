@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ALBA_ADMIN
+  EARNES
+}
+
+model User {
+  id             String      @id @default(cuid())
+  supabaseUserId String      @unique
+  email          String      @unique
+  displayName    String
+  role           Role
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  auditLogs      AuditLog[]
+  createdRecords MonthlyRecord[] @relation("RecordCreatedBy")
+  updatedRecords MonthlyRecord[] @relation("RecordUpdatedBy")
+}
+
+model MonthlyRecord {
+  id              String           @id @default(cuid())
+  year            Int
+  month           Int
+  createdById     String
+  updatedById     String?
+  createdBy       User             @relation("RecordCreatedBy", fields: [createdById], references: [id])
+  updatedBy       User?            @relation("RecordUpdatedBy", fields: [updatedById], references: [id])
+  revenueEntries  RevenueEntry[]
+  expenseEntries  ExpenseEntry[]
+  expenseItemNameHistory ExpenseItemNameHistory[]
+  effectiveExpenseItems ExpenseItem[] @relation("ExpenseItemOrigin")
+  membershipStats MembershipStats?
+  monthlyClosing  MonthlyClosing?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  @@unique([year, month])
+}
+
+model RevenueEntry {
+  id              String        @id @default(cuid())
+  monthlyRecordId String
+  description     String
+  amount          Int
+  monthlyRecord   MonthlyRecord @relation(fields: [monthlyRecordId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  @@index([monthlyRecordId])
+}
+
+model ExpenseCategory {
+  id             String         @id @default(cuid())
+  name           String         @unique
+  expenseEntries ExpenseEntry[]
+  expenseItems   ExpenseItem[]
+  createdAt      DateTime       @default(now())
+}
+
+model ExpenseEntry {
+  id              String          @id @default(cuid())
+  monthlyRecordId String
+  categoryId      String
+  expenseItemId   String?
+  description     String
+  amount          Int
+  monthlyRecord   MonthlyRecord   @relation(fields: [monthlyRecordId], references: [id], onDelete: Cascade)
+  category        ExpenseCategory @relation(fields: [categoryId], references: [id])
+  expenseItem     ExpenseItem?    @relation(fields: [expenseItemId], references: [id], onDelete: Restrict)
+  createdAt       DateTime        @default(now())
+  @@index([monthlyRecordId])
+  @@unique([monthlyRecordId, expenseItemId])
+}
+
+model ExpenseItem {
+  id                  String          @id @default(cuid())
+  categoryId          String
+  name                String
+  effectiveYear       Int
+  effectiveMonth      Int
+  effectiveMonthlyRecordId String
+  createdAt           DateTime        @default(now())
+  category            ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  effectiveMonthlyRecord MonthlyRecord @relation("ExpenseItemOrigin", fields: [effectiveMonthlyRecordId], references: [id], onDelete: Restrict)
+  expenseEntries      ExpenseEntry[]
+  nameHistory          ExpenseItemNameHistory[]
+  @@index([categoryId, effectiveYear, effectiveMonth])
+}
+
+model ExpenseItemNameHistory {
+  id        String      @id
+  itemId    String
+  year      Int
+  month     Int
+  name      String
+  createdAt DateTime    @default(now())
+  item      ExpenseItem @relation(fields: [itemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  monthlyRecord MonthlyRecord @relation(fields: [year, month], references: [year, month], onDelete: Restrict, onUpdate: Cascade)
+  @@unique([itemId, year, month])
+}
+
+model MembershipStats {
+  id              String        @id @default(cuid())
+  monthlyRecordId String        @unique
+  memberCount     Int?
+  newMembers      Int?
+  cancellations   Int?
+  monthlyRecord   MonthlyRecord @relation(fields: [monthlyRecordId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model MonthlyClosing {
+  id              String        @id @default(cuid())
+  monthlyRecordId String        @unique
+  closedAt        DateTime
+  closedByUserId  String
+  monthlyRecord   MonthlyRecord @relation(fields: [monthlyRecordId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String?
+  beforeJson String?
+  afterJson  String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
+}

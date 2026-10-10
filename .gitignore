@@ -1,0 +1,15 @@
+node_modules/
+.pnpm-store/
+.next/
+out/
+*.log
+.tsbuildinfo
+.env
+.env.*
+!.env.example
+prisma/*.db
+prisma/*.db-journal
+.next-month-create-build/
+
+.next-expense-named-build/
+.next-expense-named-final-build/
