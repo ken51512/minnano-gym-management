@@ -2,7 +2,7 @@ import { expenseItemNameLength } from "./expense-item-core.ts";
 export type MonthlyMutationBody = {
   period: { year: number; month: number };
   change?: unknown;
-  action?: "create_month" | "finalize" | "unlock" | "register_expense_item" | "register_expense_item_with_amount" | "expense_item_amount" | "rename_expense_item";
+  action?: "create_month" | "finalize" | "unlock" | "register_expense_item" | "register_expense_item_with_amount" | "expense_item_amount" | "clear_expense_item_amount" | "rename_expense_item";
   reason?: string;
   categoryId?: string;
   name?: string;
@@ -56,13 +56,16 @@ export function isPendingMonthlyRequest(value: unknown): value is PendingMonthly
     ["period", "action", "itemId", "amount"].every((key) => Object.hasOwn(body, key)) &&
     typeof body.itemId === "string" && body.itemId.length > 0 && body.itemId.length <= 200 &&
     Number.isInteger(body.amount) && (body.amount as number) >= -2147483648 && (body.amount as number) <= 2147483647;
+  const hasItemAmountClear = body.action === "clear_expense_item_amount" && Object.keys(body).length === 3 &&
+    ["period", "action", "itemId"].every((key) => Object.hasOwn(body, key)) &&
+    typeof body.itemId === "string" && body.itemId.length > 0 && body.itemId.length <= 200;
   const hasItemRename = body.action === "rename_expense_item" && Object.keys(body).length === 4 &&
     ["period", "action", "itemId", "name"].every((key) => Object.hasOwn(body, key)) &&
     typeof body.itemId === "string" && body.itemId.length > 0 && body.itemId.length <= 200 &&
     typeof body.name === "string" && body.name.trim().length > 0 && expenseItemNameLength(body.name.trim()) <= 200;
   const hasFinalize = body.action === "finalize" && Object.keys(body).length === 2;
   const hasUnlock = body.action === "unlock" && typeof body.reason === "string" && Object.keys(body).length === 3;
-  return hasChange ? Object.keys(body).length === 2 : hasCreateMonth || hasRegistration || hasRegistrationWithAmount || hasItemAmount || hasItemRename || hasFinalize || hasUnlock;
+  return hasChange ? Object.keys(body).length === 2 : hasCreateMonth || hasRegistration || hasRegistrationWithAmount || hasItemAmount || hasItemAmountClear || hasItemRename || hasFinalize || hasUnlock;
 }
 
 export function pendingMonthlyRequestBelongsToActor(request: PendingMonthlyRequest, actorId: string | null): boolean {

@@ -178,7 +178,8 @@ test("saved expense amounts render per item, reload after save, and draft values
   assert.match(editor, /value=\{value\}/);
   assert.match(editor, /setValue\(savedValue\), \[rowKey, month, savedValue\]/);
   assert.match(editor, /changed \? "\\u672a\\u4fdd\\u5b58"/);
-  assert.ok(editor.includes(String.raw`>{"\u4fdd\u5b58"}</button>`));
+  assert.match(editor, /amount === null \? "保存" : "修正"/);
+  assert.match(editor, /className="expense-row-delete"/);
   assert.match(editor, /const canSave = canSaveExpenseAmount/);
   assert.match(editor, /disabled=\{!canSave\}/);
   assert.doesNotMatch(editor, /className="expense-row-save"[^>]*>\\u[0-9a-f]{4}/i);

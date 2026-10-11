@@ -378,7 +378,7 @@ p { margin-top: 0; }
 }
 
 .expense-list { display: grid; gap: 0; width: 100%; }
-.expense-list-header, .expense-list-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(88px, 112px) 58px; align-items: center; gap: 8px; }
+.expense-list-header, .expense-list-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(88px, 112px) minmax(118px, auto); align-items: center; gap: 8px; }
 .expense-list-header { padding: 0 4px 7px; color: var(--muted); font-size: 11px; font-weight: 750; }
 .expense-list-row { min-height: 52px; padding: 6px 4px; border-top: 1px solid var(--line); }
 .expense-list-name { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 4px 8px; overflow-wrap: anywhere; font-size: 13px; font-weight: 650; }
@@ -394,6 +394,9 @@ p { margin-top: 0; }
 .expense-list-amount { width: 100%; min-width: 0; height: 36px; padding: 5px 7px; border: 1px solid #d6e0da; border-radius: 8px; background: #fff; color: var(--ink); text-align: right; font-size: 14px; }
 .expense-row-save { min-width: 54px; min-height: 34px; padding: 5px 8px; border: 1px solid #cbd9d1; border-radius: 8px; background: #f5f8f6; color: #315844; font-size: 12px; font-weight: 700; }
 .expense-row-save:disabled { opacity: .48; }
+.expense-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.expense-row-delete { min-width: 54px; min-height: 34px; padding: 5px 8px; border: 1px solid #e2b8b8; border-radius: 8px; background: #fff7f7; color: #a43b3b; font-size: 12px; font-weight: 700; }
+.expense-row-delete:disabled { opacity: .48; }
 .expense-list-empty, .expense-list-note { margin: 7px 4px; color: var(--muted); font-size: 11px; }
 .expense-add-row { display: grid; align-items: end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .expense-add-row.has-name { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(90px, 120px) auto auto; }
@@ -406,10 +409,11 @@ p { margin-top: 0; }
 .expense-rename-effective { color: var(--muted); font-size: 10px; white-space: nowrap; }
 .expense-rename-save, .expense-rename-cancel { white-space: nowrap; }
 @media (max-width: 480px) {
-  .expense-list-header, .expense-list-row { grid-template-columns: minmax(0, 1fr) 82px 52px; gap: 6px; }
+  .expense-list-header, .expense-list-row { grid-template-columns: minmax(0, 1fr) 82px minmax(104px, auto); gap: 6px; }
   .expense-list-row { min-height: 48px; padding: 5px 2px; }
   .expense-list-amount { height: 34px; padding-inline: 5px; font-size: 13px; }
   .expense-row-save { min-width: 48px; min-height: 32px; padding: 4px 5px; font-size: 11px; }
+  .expense-row-delete { min-width: 48px; min-height: 32px; padding: 4px 5px; font-size: 11px; }
   .expense-add-row.has-name { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 78px 32px 48px; gap: 4px; }
   .expense-add-row.has-fixed { grid-template-columns: minmax(0, 1fr) 88px 48px; gap: 5px; }
   .expense-add-row input, .expense-add-row select { height: 34px; padding-inline: 5px; font-size: 12px; }

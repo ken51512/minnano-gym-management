@@ -6,6 +6,7 @@ import { createBrowserMonthlyRpc } from "./monthly-browser-rpc.ts";
 import { parseMonthlyChange, parsePeriod, readMonthlySnapshot, type MonthlyReadPort } from "./monthly-query-core.ts";
 import {
   callMonthlyChangeRpc,
+  callMonthlyClearExpenseItemAmountRpc,
   callMonthlyCreateRpc,
   callMonthlyFinalizeRpc,
   callMonthlyRegisterExpenseItemRpc,
@@ -155,6 +156,7 @@ async function executeMonthlyMutation(pending: PendingMonthlyRequest, rpc: Month
   if (body.action === "register_expense_item" && typeof body.categoryId === "string" && typeof body.name === "string" && body.name.trim() && expenseItemNameLength(body.name.trim()) <= 200) return callMonthlyRegisterExpenseItemRpc(rpc, period, body.categoryId, body.name.trim(), pending.requestId);
   if (body.action === "register_expense_item_with_amount" && typeof body.categoryId === "string" && typeof body.name === "string" && body.name.trim() && expenseItemNameLength(body.name.trim()) <= 200 && (body.amount === null || (typeof body.amount === "number" && Number.isInteger(body.amount)))) return callMonthlyRegisterExpenseItemWithAmountRpc(rpc, period, body.categoryId, body.name.trim(), body.amount, pending.requestId);
   if (body.action === "expense_item_amount" && typeof body.itemId === "string" && typeof body.amount === "number" && Number.isInteger(body.amount)) return callMonthlySetExpenseItemAmountRpc(rpc, period, body.itemId, body.amount, pending.requestId);
+  if (body.action === "clear_expense_item_amount" && typeof body.itemId === "string") return callMonthlyClearExpenseItemAmountRpc(rpc, period, body.itemId, pending.requestId);
   if (body.action === "rename_expense_item" && typeof body.itemId === "string" && typeof body.name === "string" && body.name.trim() && expenseItemNameLength(body.name.trim()) <= 200) return callMonthlyRenameExpenseItemRpc(rpc, period, body.itemId, body.name.trim(), pending.requestId);
   throw new MonthlyOperationError("INVALID_CHANGE");
 }

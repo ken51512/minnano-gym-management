@@ -56,11 +56,13 @@ test("expense item registration and amount writes retain exact retry envelopes",
   const rename = createPendingMonthlyRequest(actorId, { period: { year: 2026, month: 10 }, action: "rename_expense_item", itemId: "fixture-item", name: "Coach B" }, () => id);
   const withAmount = createPendingMonthlyRequest(actorId, { period: { year: 2026, month: 9 }, action: "register_expense_item_with_amount", categoryId: "labor-category", name: "Coach C", amount: 0 }, () => id);
   const nameOnly = createPendingMonthlyRequest(actorId, { period: { year: 2026, month: 9 }, action: "register_expense_item_with_amount", categoryId: "labor-category", name: "Coach D", amount: null }, () => id);
+  const clearAmount = createPendingMonthlyRequest(actorId, { period: { year: 2026, month: 10 }, action: "clear_expense_item_amount", itemId: "fixture-item" }, () => id);
   assert.equal(isPendingMonthlyRequest(registration), true);
   assert.equal(isPendingMonthlyRequest(amount), true);
   assert.equal(isPendingMonthlyRequest(rename), true);
   assert.equal(isPendingMonthlyRequest(withAmount), true);
   assert.equal(isPendingMonthlyRequest(nameOnly), true);
+  assert.equal(isPendingMonthlyRequest(clearAmount), true);
   assert.equal(isPendingMonthlyRequest({ ...withAmount, body: { ...withAmount.body, amount: 2147483648 } }), false);
   assert.equal(isPendingMonthlyRequest({ ...rename, body: { ...rename.body, name: "\u00a0\ufeff" } }), false);
   assert.equal(isPendingMonthlyRequest({ ...rename, body: { ...rename.body, role: "ALBA_ADMIN" } }), false);

@@ -132,7 +132,7 @@ test("ALBA_ADMIN can edit membership statistics", async () => {
   const f = fixture();
   f.actor.current = { id: "alba-user", role: ROLES.ALBA_ADMIN };
   await f.service.edit(period, { type: "membershipStats", memberCount: 1, newMembers: 0, cancellations: 0 });
-  assert.equal(f.state.change?.type, "membershipStats");
+  assert.equal((f.state.change as MonthlyChange | null)?.type, "membershipStats");
   assert.equal(f.state.audits.length, 1);
 });
 

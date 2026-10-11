@@ -124,6 +124,12 @@ export async function callMonthlySetExpenseItemAmountRpc(rpc: MonthlyRpcCall, pe
   }, requestId, false, true);
 }
 
+export async function callMonthlyClearExpenseItemAmountRpc(rpc: MonthlyRpcCall, period: MonthPeriod, itemId: string, requestId: string): Promise<void> {
+  await invokeMonthlyRpc(rpc, "clear_monthly_expense_item_amount", {
+    p_year: period.year, p_month: period.month, p_item_id: itemId,
+  }, requestId, false, true);
+}
+
 export async function callMonthlyRenameExpenseItemRpc(rpc: MonthlyRpcCall, period: MonthPeriod, itemId: string, name: string, requestId: string): Promise<void> {
   await invokeMonthlyRpc(rpc, "rename_monthly_expense_item", {
     p_year: period.year, p_month: period.month, p_item_id: itemId, p_name: name,

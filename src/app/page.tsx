@@ -338,9 +338,9 @@ function ExistingEntryEditor({ kind, entry, role, saveChange, busy }: {
   </div>;
 }
 
-function ExpenseAmountRow({ rowKey, month, label, amount, canEdit, busy, saveState, saveAmount, nameControl, onDraftChange }: {
+function ExpenseAmountRow({ rowKey, month, label, amount, canEdit, busy, saveState, saveAmount, deleteAmount, nameControl, onDraftChange }: {
   rowKey: string; month: string; label: string; amount: number | null; canEdit: boolean; busy: boolean; saveState: SaveState;
-  saveAmount: (amount: number) => Promise<boolean>; nameControl?: React.ReactNode; onDraftChange?: (value: string) => void;
+  saveAmount: (amount: number) => Promise<boolean>; deleteAmount?: () => Promise<boolean>; nameControl?: React.ReactNode; onDraftChange?: (value: string) => void;
 }) {
   const savedValue = amount === null ? "" : String(amount);
   const [value, setValue] = useState(savedValue);
@@ -353,16 +353,22 @@ function ExpenseAmountRow({ rowKey, month, label, amount, canEdit, busy, saveSta
     if (!canSave) return;
     if (await saveAmount(numericValue)) setValue(String(numericValue));
   };
+  const remove = async () => {
+    if (!deleteAmount || amount === null || busy) return;
+    const confirmed = window.confirm(`${month.slice(0, 4)}年${Number(month.slice(5, 7))}月／${label}／${amount.toLocaleString()}円 を削除して未入力に戻しますか？`);
+    if (!confirmed) return;
+    if (await deleteAmount()) { setValue(""); onDraftChange?.(""); }
+  };
   return <div className="expense-list-row">
     <div className="expense-list-name" title={label}>{label}{nameControl}<span className={`expense-row-status${changed ? " is-dirty" : ""}`}>{status}</span></div>
     <input className="expense-list-amount" type="number" step="1" inputMode="decimal" aria-label={`${label}の金額（円）`} value={value} onChange={(event) => { setValue(event.target.value); onDraftChange?.(event.target.value); }} disabled={!canEdit || busy} />
-    <button type="button" className="expense-row-save" onClick={() => void submit()} disabled={!canSave}>{"\u4fdd\u5b58"}</button>
+    <div className="expense-row-actions"><button type="button" className="expense-row-save" onClick={() => void submit()} disabled={!canSave}>{amount === null ? "保存" : "修正"}</button>{deleteAmount && amount !== null && <button type="button" className="expense-row-delete" onClick={() => void remove()} disabled={!canEdit || busy}>削除</button>}</div>
   </div>;
 }
 
-function NamedExpenseAmountRow({ itemId, month, label, amount, canEdit, busy, saveState, saveAmount, renameItem, onDraftChange }: {
+function NamedExpenseAmountRow({ itemId, month, label, amount, canEdit, busy, saveState, saveAmount, deleteAmount, renameItem, onDraftChange }: {
   itemId: string; month: string; label: string; amount: number | null; canEdit: boolean; busy: boolean; saveState: SaveState;
-  saveAmount: (amount: number) => Promise<boolean>; renameItem: (name: string) => Promise<boolean>; onDraftChange?: (value: string) => void;
+  saveAmount: (amount: number) => Promise<boolean>; deleteAmount: () => Promise<boolean>; renameItem: (name: string) => Promise<boolean>; onDraftChange?: (value: string) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(label);
@@ -376,11 +382,11 @@ function NamedExpenseAmountRow({ itemId, month, label, amount, canEdit, busy, sa
         <button type="button" className="expense-rename-save" disabled={busy || !nameChanged || !name.trim()} onClick={async () => { if (await renameItem(name.trim())) setRenaming(false); }}>名前を保存</button>
         <button type="button" className="expense-rename-cancel" disabled={busy} onClick={() => { setName(label); setRenaming(false); }}>取消</button>
       </>;
-  return <ExpenseAmountRow rowKey={itemId} month={month} label={renaming ? "" : label} amount={amount} canEdit={canEdit} busy={busy} saveState={saveState} saveAmount={saveAmount} nameControl={nameControl} onDraftChange={onDraftChange} />;
+  return <ExpenseAmountRow rowKey={itemId} month={month} label={renaming ? "" : label} amount={amount} canEdit={canEdit} busy={busy} saveState={saveState} saveAmount={saveAmount} deleteAmount={deleteAmount} nameControl={nameControl} onDraftChange={onDraftChange} />;
 }
 
-function ConnectedExpenseDetails({ month, role, snapshot, refresh, saveChange, registerItem, saveItemAmount, renameItem, saveState, saveMessage, compact = false }: {
-  month: string; role: Role; snapshot: ApiSnapshot | null; refresh: () => Promise<void>; saveChange: (change: MonthlyChange) => Promise<boolean>; registerItem: (categoryId: string, name: string, amount: number | null) => Promise<boolean>; saveItemAmount: (itemId: string, amount: number) => Promise<boolean>; renameItem: (itemId: string, name: string) => Promise<boolean>; saveState: SaveState; saveMessage: string; compact?: boolean;
+function ConnectedExpenseDetails({ month, role, snapshot, refresh, saveChange, registerItem, saveItemAmount, clearItemAmount, renameItem, saveState, saveMessage, compact = false }: {
+  month: string; role: Role; snapshot: ApiSnapshot | null; refresh: () => Promise<void>; saveChange: (change: MonthlyChange) => Promise<boolean>; registerItem: (categoryId: string, name: string, amount: number | null) => Promise<boolean>; saveItemAmount: (itemId: string, amount: number) => Promise<boolean>; clearItemAmount: (itemId: string) => Promise<boolean>; renameItem: (itemId: string, name: string) => Promise<boolean>; saveState: SaveState; saveMessage: string; compact?: boolean;
 }) {
   const [categoryId, setCategoryId] = useState("");
   const [amount, setAmount] = useState("");
@@ -412,8 +418,8 @@ function ConnectedExpenseDetails({ month, role, snapshot, refresh, saveChange, r
         <PanelHeading title={"\u7d4c\u8cbb\u660e\u7d30"} aside={<span className="role-pill">{"\u7ba1\u7406\u8005"}</span>} />
         <div className="expense-list" aria-label={"\u7d4c\u8cbb\u4e00\u89a7"}>
           <div className="expense-list-header"><span>{"\u9805\u76ee\u540d"}</span><span>{"\u91d1\u984d\uff08\u5186\uff09"}</span><span></span></div>
-          {snapshot.expenseItems.map((item) => <NamedExpenseAmountRow key={item.id} itemId={item.id} month={month} label={item.name} amount={item.amount} canEdit={role === "ALBA_ADMIN" && snapshot.exists && !snapshot.closed} busy={busy} saveState={saveState} saveAmount={(nextAmount) => saveItemAmount(item.id, nextAmount)} renameItem={(nextName) => renameItem(item.id, nextName)} onDraftChange={(value) => setDraftAmount(item.id, value)} />)}
-          {snapshot.expenseEntries.filter((entry) => !entry.expenseItemId).map((entry) => <ExpenseAmountRow key={entry.id} rowKey={entry.id} month={month} label={entry.description === entry.categoryName ? entry.categoryName : `${entry.categoryName} / ${entry.description}`} amount={entry.amount} canEdit={role === "ALBA_ADMIN" && snapshot.exists && !snapshot.closed} busy={busy} saveState={saveState} saveAmount={(nextAmount) => saveChange({ type: "expenseEntry", operation: "update", id: entry.id, amount: nextAmount })} onDraftChange={(value) => setDraftAmount(entry.id, value)} />)}
+          {snapshot.expenseItems.map((item) => <NamedExpenseAmountRow key={item.id} itemId={item.id} month={month} label={item.name} amount={item.amount} canEdit={role === "ALBA_ADMIN" && snapshot.exists && !snapshot.closed} busy={busy} saveState={saveState} saveAmount={(nextAmount) => saveItemAmount(item.id, nextAmount)} deleteAmount={() => clearItemAmount(item.id)} renameItem={(nextName) => renameItem(item.id, nextName)} onDraftChange={(value) => setDraftAmount(item.id, value)} />)}
+          {snapshot.expenseEntries.filter((entry) => !entry.expenseItemId).map((entry) => <ExpenseAmountRow key={entry.id} rowKey={entry.id} month={month} label={entry.description === entry.categoryName ? entry.categoryName : `${entry.categoryName} / ${entry.description}`} amount={entry.amount} canEdit={role === "ALBA_ADMIN" && snapshot.exists && !snapshot.closed} busy={busy} saveState={saveState} saveAmount={(nextAmount) => saveChange({ type: "expenseEntry", operation: "update", id: entry.id, amount: nextAmount })} deleteAmount={() => saveChange({ type: "expenseEntry", operation: "delete", id: entry.id })} onDraftChange={(value) => setDraftAmount(entry.id, value)} />)}
           {snapshot.expenseItems.length === 0 && snapshot.expenseEntries.filter((entry) => !entry.expenseItemId).length === 0 && <p className="expense-list-empty">{"\u7d4c\u8cbb\u660e\u7d30\u306f\u307e\u3060\u3042\u308a\u307e\u305b\u3093"}</p>}
         </div>
         <div className="expense-subtotal" aria-live="polite"><span>経費小計</span><strong>{subtotal === null ? "—" : `¥${subtotal.toLocaleString()}`}</strong></div>
@@ -1002,6 +1008,7 @@ export default function Home() {
   };
   const registerExpenseItem = (categoryId:string,name:string,amount:number|null) => runExpenseItemMutation({action:"register_expense_item_with_amount",categoryId,name,amount});
   const saveExpenseItemAmount = (itemId:string,amount:number) => runExpenseItemMutation({action:"expense_item_amount",itemId,amount});
+  const clearExpenseItemAmount = (itemId:string) => runExpenseItemMutation({action:"clear_expense_item_amount",itemId});
   const renameExpenseItem = (itemId:string,name:string) => runExpenseItemMutation({action:"rename_expense_item",itemId,name});
   const editMembershipValues = (next: typeof membershipValues) => { setMembershipValues(next); setDirty(true); setSaveState("unsaved"); setSaveMessage("未保存の変更があります。"); };
   const saveChange = async (change: MonthlyChange): Promise<boolean> => {
@@ -1137,7 +1144,7 @@ export default function Home() {
     }
   };
   const entryProps: Omit<React.ComponentProps<typeof ConnectedMonthlyEntry>, "month" | "role" | "expenseProps"> = { snapshot, refresh: async () => { await loadSnapshot(targetMonth); }, submitMembership, createMonth, saveChange, values: membershipValues, setValues: editMembershipValues, saveState, saveMessage };
-  const expenseProps: Omit<React.ComponentProps<typeof ConnectedExpenseDetails>, "month" | "role"> = { snapshot, refresh: async () => { await loadSnapshot(targetMonth); }, saveChange, registerItem: registerExpenseItem, saveItemAmount: saveExpenseItemAmount, renameItem: renameExpenseItem, saveState, saveMessage };
+  const expenseProps: Omit<React.ComponentProps<typeof ConnectedExpenseDetails>, "month" | "role"> = { snapshot, refresh: async () => { await loadSnapshot(targetMonth); }, saveChange, registerItem: registerExpenseItem, saveItemAmount: saveExpenseItemAmount, clearItemAmount: clearExpenseItemAmount, renameItem: renameExpenseItem, saveState, saveMessage };
   const reviewProps: Omit<React.ComponentProps<typeof ConnectedMonthlyReview>, "month" | "role" | "authState"> = { snapshot, refresh: async () => { const wasUnknown = saveState === "outcome_unknown"; const latest = await loadSnapshot(targetMonth); if (wasUnknown) setSaveMessage(latest ? "最新状態を取得しました。先行処理の結果不明のため、この画面からの再送はロック中です。" : "最新状態を取得できません。再送はロック中です。"); }, finalize: async () => { await runClosingAction("finalize"); }, unlock: async () => { await runClosingAction("unlock"); }, unlockReason, setUnlockReason, saveState, saveMessage };
   const navigate = (next: Screen) => {
     if (authState !== "ready" && next !== "login") {

@@ -22,7 +22,8 @@ test("390px expense registration form fits the mobile panel without horizontal o
 });
 
 test("the amount save button renders its Japanese label as a JavaScript string expression", () => {
-  assert.ok(page.includes(String.raw`>{"\u4fdd\u5b58"}</button>`));
+  assert.match(page, /amount === null \? "保存" : "修正"/);
+  assert.match(page, /className="expense-row-delete"/);
   assert.doesNotMatch(page, /className="expense-row-save"[^>]*>\\u[0-9a-f]{4}/i);
   const markup = renderToStaticMarkup(createElement("button", null, "\u4fdd\u5b58"));
   assert.equal(markup, "<button>保存</button>");
