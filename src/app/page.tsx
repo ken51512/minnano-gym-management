@@ -275,6 +275,8 @@ function ConnectedMonthlyEntry({ month, role, snapshot, refresh, submitMembershi
 }) {
   const [otherDescription, setOtherDescription] = useState("");
   const [otherAmount, setOtherAmount] = useState("");
+  const [draftRevenueAmounts, setDraftRevenueAmounts] = useState<Record<string, string>>({});
+  useEffect(() => setDraftRevenueAmounts({}), [month]);
   const editRole = snapshot?.exists && !snapshot.closed && saveState !== "saving" && saveState !== "outcome_unknown" ? role : null;
   const submitOtherRevenue = async () => {
     if (!otherDescription.trim() || !/^-?\d+$/.test(otherAmount) || !Number.isSafeInteger(Number(otherAmount)) || Number(otherAmount) < -2147483648 || Number(otherAmount) > 2147483647) return;
@@ -283,6 +285,10 @@ function ConnectedMonthlyEntry({ month, role, snapshot, refresh, submitMembershi
   const readField = (key: keyof typeof values, id: string, label: string) => <DisabledField
     id={id} label={label} helper="0と未入力は区別されます。" type="number" role={editRole} value={values[key]}
     onChange={(value) => setValues({ ...values, [key]: value })} />;
+  const revenueSubtotal = snapshot ? snapshot.revenueEntries.reduce((total, entry) => {
+    const raw = Object.hasOwn(draftRevenueAmounts, entry.id) ? draftRevenueAmounts[entry.id] : String(entry.amount);
+    return /^-?\d+$/.test(raw) ? total + Number(raw) : total;
+  }, 0) + (/^-?\d+$/.test(otherAmount) ? Number(otherAmount) : 0) : null;
   const periodNotice = !month
     ? "\u5bfe\u8c61\u6708\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
     : !snapshot
@@ -298,13 +304,14 @@ function ConnectedMonthlyEntry({ month, role, snapshot, refresh, submitMembershi
     {snapshot && !snapshot.exists && role === "ALBA_ADMIN" && <section className="panel" aria-label="月次データの作成"><PanelHeading title="この月のデータを作成" hint="作成後、売上・経費・会員数を入力できます。作成時点では未入力です。" /><button type="button" className="primary-button" onClick={() => void createMonth()} disabled={!month || saveState === "saving" || saveState === "outcome_unknown"}>{saveState === "saving" ? "作成中…" : "この月を作成"}</button></section>}
     {snapshot?.exists && !snapshot.closed && role === "ALBA_ADMIN" && <section className="panel">
       <PanelHeading title={"\u58f2\u4e0a\u660e\u7d30"} hint={"\u5b9f\u969b\u306e\u5165\u91d1\u3092\u884c\u3054\u3068\u306b\u767b\u9332\u3057\u307e\u3059\u3002"} aside={<span className="role-pill">{"\u7ba1\u7406\u8005"}</span>} />
-      {snapshot.revenueEntries.map((entry) => <ExistingEntryEditor key={entry.id} kind="revenueEntry" entry={entry} role={editRole} saveChange={saveChange} busy={saveState === "saving" || saveState === "outcome_unknown"} />)}
+      {snapshot.revenueEntries.map((entry) => <ExistingEntryEditor key={entry.id} kind="revenueEntry" entry={entry} role={editRole} saveChange={saveChange} busy={saveState === "saving" || saveState === "outcome_unknown"} onDraftChange={(value) => setDraftRevenueAmounts((current) => ({ ...current, [entry.id]: value }))} />)}
       <div className="field-grid field-grid--two">
         <label className="field"><span>{"\u5165\u91d1\u5185\u5bb9"}</span><input value={otherDescription} onChange={(event) => setOtherDescription(event.target.value)} maxLength={200} placeholder="Sugram 1 / Sugram 2 / \u305d\u306e\u4ed6" /></label>
         <label className="field"><span>{"\u5165\u91d1\u984d\uff08\u7a0e\u8fbc\u30fb\u5186\uff09"}</span><input type="number" step="1" value={otherAmount} onChange={(event) => setOtherAmount(event.target.value)} /></label>
         <button type="button" className="primary-button" disabled={!otherDescription.trim() || !/^-?\d+$/.test(otherAmount) || !Number.isSafeInteger(Number(otherAmount)) || Number(otherAmount) < -2147483648 || Number(otherAmount) > 2147483647 || saveState === "saving" || saveState === "outcome_unknown"} onClick={() => void submitOtherRevenue()}>{"\u58f2\u4e0a\u3092\u8ffd\u52a0"}</button>
       </div>
       <p className="field-help">{"Sugram 1\u30fbSugram 2\u3068\u305d\u306e\u4ed6\u306e\u5165\u91d1\u3092\u3001\u5185\u5bb9\u3068\u91d1\u984d\u3067\u8a18\u9332\u3057\u307e\u3059\u3002\u305d\u306e\u4ed6\u306f\u8907\u6570\u884c\u767b\u9332\u3067\u304d\u307e\u3059\u3002"}</p>
+      <div className="expense-subtotal" aria-live="polite"><span>売上小計</span><strong>{revenueSubtotal === null ? "—" : `¥${revenueSubtotal.toLocaleString()}`}</strong></div>
     </section>}
     <ConnectedExpenseDetails {...expenseProps} month={month} role={role} compact />
     <section className="panel"><PanelHeading title="会員数集計" hint="対象月の前月末時点の会員数を入力します。" aside={<span className="role-pill role-pill--blue">入力担当：ALBA_ADMIN / EarneS</span>} />
@@ -317,23 +324,23 @@ function ConnectedMonthlyEntry({ month, role, snapshot, refresh, submitMembershi
   </div>;
 }
 
-function ExistingEntryEditor({ kind, entry, role, saveChange, busy }: {
+function ExistingEntryEditor({ kind, entry, role, saveChange, busy, onDraftChange }: {
   kind: "revenueEntry" | "expenseEntry";
   entry: { id: string; description: string; amount: number; categoryId?: string; categoryName?: string };
-  role: Role; saveChange: (change: MonthlyChange) => Promise<boolean>; busy: boolean;
+  role: Role; saveChange: (change: MonthlyChange) => Promise<boolean>; busy: boolean; onDraftChange?: (value: string) => void;
 }) {
   const [description, setDescription] = useState(entry.description);
   const [amount, setAmount] = useState(String(entry.amount));
   const roleAllowed = role === "ALBA_ADMIN";
   const submit = async () => {
     if (!/^-?\d+$/.test(amount) || !Number.isSafeInteger(Number(amount)) || Number(amount) < -2147483648 || Number(amount) > 2147483647 || !description.trim()) return;
-    if (kind === "revenueEntry") await saveChange({ type: kind, operation: "update", id: entry.id, description: description.trim(), amount: Number(amount) });
-    else await saveChange({ type: kind, operation: "update", id: entry.id, description: description.trim(), amount: Number(amount) });
+    const saved = await saveChange({ type: kind, operation: "update", id: entry.id, description: description.trim(), amount: Number(amount) });
+    if (saved) { setAmount(String(Number(amount))); onDraftChange?.(String(Number(amount))); }
   };
   return <div className="field-grid field-grid--two">
     {kind === "expenseEntry" && <p className="field-label">{entry.categoryName}</p>}
     <label className="field"><span>内容</span><input value={description} onChange={(event) => setDescription(event.target.value)} disabled={!roleAllowed || busy} maxLength={200} /></label>
-    <label className="field"><span>金額（税込・円）</span><input type="number" step="1" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={!roleAllowed || busy} /></label>
+    <label className="field"><span>金額（税込・円）</span><input type="number" step="1" value={amount} onChange={(event) => { setAmount(event.target.value); onDraftChange?.(event.target.value); }} disabled={!roleAllowed || busy} /></label>
     <button type="button" className="secondary-button" onClick={() => void submit()} disabled={!roleAllowed || busy}>この明細を保存</button>
   </div>;
 }
