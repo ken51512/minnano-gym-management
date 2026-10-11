@@ -3,6 +3,7 @@ import { sumEnteredExpenseAmounts } from "./expense-total-core.ts";
 export type SimulationMonth = {
   year: number;
   month: number;
+  closed?: boolean;
   memberCount: number | null;
   revenueAmounts: number[];
   expenseAmounts: number[];
@@ -27,22 +28,30 @@ export type SimulationResult = {
   memberDifference: number | null;
   currentDifference: number | null;
   operatingMargin: number | null;
+  baselineMonthCount: number;
 };
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
 
 export function averageMemberUnitPrice(months: readonly SimulationMonth[]): number | null {
-  const values = months
+  const values = eligibleSimulationMonths(months)
     .filter((month) => month.memberCount !== null && month.memberCount > 0 && month.revenueAmounts.length > 0)
     .map((month) => sum(month.revenueAmounts) / (month.memberCount as number));
   return values.length > 0 ? values.reduce((total, value) => total + value, 0) / values.length : null;
 }
 
 export function averageExpense(months: readonly SimulationMonth[]): number | null {
-  const values = months
+  const values = eligibleSimulationMonths(months)
     .map((month) => month.expenseTotal === undefined ? sumEnteredExpenseAmounts(month.expenseAmounts) : month.expenseTotal)
     .filter((total): total is number => total !== null);
   return values.length > 0 ? values.reduce((total, value) => total + value, 0) / values.length : null;
+}
+
+export function eligibleSimulationMonths(months: readonly SimulationMonth[]): SimulationMonth[] {
+  return months.filter((month) => {
+    const expense = month.expenseTotal === undefined ? sumEnteredExpenseAmounts(month.expenseAmounts) : month.expenseTotal;
+    return month.closed !== false && month.memberCount !== null && month.memberCount !== undefined && month.revenueAmounts.length > 0 && expense !== null;
+  });
 }
 
 export function albaReward(memberCount: number): number {
@@ -78,8 +87,9 @@ export function monthlyMetrics(month: SimulationMonth) {
 }
 
 export function calculateSimulation(memberCount: number, months: readonly SimulationMonth[], current: SimulationMonth | null = null): SimulationResult | null {
-  const unitPrice = averageMemberUnitPrice(months);
-  const expense = averageExpense(months);
+  const eligibleMonths = eligibleSimulationMonths(months);
+  const unitPrice = averageMemberUnitPrice(eligibleMonths);
+  const expense = averageExpense(eligibleMonths);
   if (unitPrice === null || expense === null) return null;
   const revenue = memberCount * unitPrice;
   const grossProfit = revenue - expense;
@@ -102,5 +112,6 @@ export function calculateSimulation(memberCount: number, months: readonly Simula
     memberDifference: current?.memberCount === null || current?.memberCount === undefined ? null : memberCount - current.memberCount,
     currentDifference: currentGross === null ? null : grossProfit - currentGross,
     operatingMargin: revenue === 0 ? null : grossProfit / revenue,
+    baselineMonthCount: eligibleMonths.length,
   };
 }

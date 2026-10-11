@@ -48,7 +48,7 @@ test("monthly reads use the browser session and preserve invalid-period rejectio
 test("simulation history reads all expense entries independently of the selected month", () => {
   const source = readFileSync(new URL("./monthly-ui-client.ts", import.meta.url), "utf8");
   assert.match(source, /fetchSimulationHistory/);
-  assert.match(source, /expenseEntries:ExpenseEntry\(amount,categoryId\)/);
+  assert.match(source, /expenseEntries:ExpenseEntry\(amount,categoryId\).*monthlyClosing:MonthlyClosing\(id\)/);
   assert.match(source, /ExpenseCategory.*select\("id,name"\)/);
   assert.doesNotMatch(source, /expenseEntries:ExpenseEntry\(amount,category:ExpenseCategory/);
 });

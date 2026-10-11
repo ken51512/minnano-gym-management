@@ -129,7 +129,7 @@ export async function fetchSimulationHistory(): Promise<SimulationMonth[]> {
   // only needed for rate labels; all expense totals come from ExpenseEntry.
   const [{ data, error }, { data: categoryRows, error: categoryError }] = await Promise.all([
     client.from("MonthlyRecord")
-      .select("year,month,revenueEntries:RevenueEntry(amount),expenseEntries:ExpenseEntry(amount,categoryId),membershipStats:MembershipStats(memberCount,newMembers,cancellations)")
+      .select("year,month,revenueEntries:RevenueEntry(amount),expenseEntries:ExpenseEntry(amount,categoryId),membershipStats:MembershipStats(memberCount,newMembers,cancellations),monthlyClosing:MonthlyClosing(id)")
       .order("year", { ascending: true }).order("month", { ascending: true }),
     client.from("ExpenseCategory").select("id,name"),
   ]);
@@ -149,6 +149,7 @@ export async function fetchSimulationHistory(): Promise<SimulationMonth[]> {
     if (!raw || typeof raw !== "object") continue;
     const row = raw as Record<string, unknown>;
     const stats = one(row.membershipStats);
+    const closing = one(row.monthlyClosing);
     const amounts = (value: unknown) => Array.isArray(value) ? value.flatMap((item) => item && typeof item === "object" && Number.isInteger((item as Record<string, unknown>).amount) ? [(item as Record<string, unknown>).amount as number] : []) : [];
     const expenseAmounts = amounts(row.expenseEntries);
     const categoryAmounts = Array.isArray(row.expenseEntries) ? row.expenseEntries.flatMap((item) => {
@@ -158,7 +159,7 @@ export async function fetchSimulationHistory(): Promise<SimulationMonth[]> {
       return categoryName ? [{ categoryName, amount: (item as Record<string, unknown>).amount as number }] : [];
     }) : [];
     if (!Number.isInteger(row.year) || !Number.isInteger(row.month)) continue;
-    rows.push({ year: row.year as number, month: row.month as number, memberCount: stats && (stats.memberCount === null || Number.isInteger(stats.memberCount)) ? stats.memberCount as number | null : null, newMembers: stats && (stats.newMembers === null || Number.isInteger(stats.newMembers)) ? stats.newMembers as number | null : null, cancellations: stats && (stats.cancellations === null || Number.isInteger(stats.cancellations)) ? stats.cancellations as number | null : null, revenueAmounts: amounts(row.revenueEntries), expenseAmounts, expenseTotal: sumEnteredExpenseAmounts(expenseAmounts), expenseCategoryAmounts: categoryAmounts });
+    rows.push({ year: row.year as number, month: row.month as number, closed: closing !== null, memberCount: stats && (stats.memberCount === null || Number.isInteger(stats.memberCount)) ? stats.memberCount as number | null : null, newMembers: stats && (stats.newMembers === null || Number.isInteger(stats.newMembers)) ? stats.newMembers as number | null : null, cancellations: stats && (stats.cancellations === null || Number.isInteger(stats.cancellations)) ? stats.cancellations as number | null : null, revenueAmounts: amounts(row.revenueEntries), expenseAmounts, expenseTotal: sumEnteredExpenseAmounts(expenseAmounts), expenseCategoryAmounts: categoryAmounts });
   }
   return rows;
 }

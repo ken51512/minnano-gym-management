@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { albaReward, averageExpense, averageMemberUnitPrice, calculateSimulation, monthlyMetrics } from "./simulator-core.ts";
+import { albaReward, averageExpense, averageMemberUnitPrice, calculateSimulation, eligibleSimulationMonths, monthlyMetrics } from "./simulator-core.ts";
 
 const months = [
   { year: 2026, month: 1, memberCount: 60, revenueAmounts: [600000], expenseAmounts: [200000] },
@@ -42,6 +42,33 @@ test("monthly simulator expense equals the input subtotal for every persisted en
   const month = { year: 2026, month: 8, memberCount: 60, revenueAmounts: [600000], expenseAmounts: entries, expenseTotal: entries.reduce((total, amount) => total + amount, 0) };
   assert.equal(month.expenseTotal, averageExpense([month]));
 });
+
+test("only closed months share one baseline set for price and expense averages", () => {
+  const months = [
+    { ...monthsFixture(67, 675641, 326651), year: 2026, month: 8, closed: true },
+    { ...monthsFixture(65, 695042, 367005), year: 2026, month: 9, closed: true },
+    { ...monthsFixture(null, 689999, 77800), year: 2026, month: 10, closed: false },
+  ];
+  assert.equal(eligibleSimulationMonths(months).length, 2);
+  assert.equal(averageExpense(months), 346828);
+  assert.equal(averageMemberUnitPrice(months), (675641 / 67 + 695042 / 65) / 2);
+  assert.equal(calculateSimulation(70, months)?.baselineMonthCount, 2);
+  assert.equal(averageExpense(months.slice(0, 2)), averageExpense(months));
+});
+
+test("a newly closed month joins the baseline automatically", () => {
+  const months = [
+    { ...monthsFixture(67, 675641, 326651), closed: true },
+    { ...monthsFixture(65, 695042, 367005), closed: true },
+    { ...monthsFixture(64, 689999, 77800), closed: true },
+  ];
+  assert.equal(eligibleSimulationMonths(months).length, 3);
+  assert.equal(averageExpense(months), (326651 + 367005 + 77800) / 3);
+});
+
+function monthsFixture(memberCount: number | null, revenue: number, expense: number) {
+  return { year: 2026, month: 1, memberCount, revenueAmounts: [revenue], expenseAmounts: [expense], expenseTotal: expense };
+}
 
 test("simulation returns no result when either baseline is unavailable", () => {
   assert.equal(calculateSimulation(60, [{ ...months[0], expenseAmounts: [] }]), null);
