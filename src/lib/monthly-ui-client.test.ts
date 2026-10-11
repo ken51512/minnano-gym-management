@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import { createPendingMonthlyRequest } from "./monthly-request-core.ts";
 import { fetchMonthlySnapshot, fetchVerifiedSession, postMonthlyMutation, resolveVerifiedSession, type MonthlyUiDependencies } from "./monthly-ui-client.ts";
 
@@ -42,6 +43,14 @@ test("monthly reads use the browser session and preserve invalid-period rejectio
   assert.equal(result.response.status, 200);
   assert.equal((result.body?.snapshot as { period?: { year?: number } }).period?.year, 2026);
   await assert.rejects(fetchMonthlySnapshot("26-10", fakeDependencies()), /Invalid monthly period/);
+});
+
+test("simulation history reads all expense entries independently of the selected month", () => {
+  const source = readFileSync(new URL("./monthly-ui-client.ts", import.meta.url), "utf8");
+  assert.match(source, /fetchSimulationHistory/);
+  assert.match(source, /expenseEntries:ExpenseEntry\(amount,categoryId\)/);
+  assert.match(source, /ExpenseCategory.*select\("id,name"\)/);
+  assert.doesNotMatch(source, /expenseEntries:ExpenseEntry\(amount,category:ExpenseCategory/);
 });
 
 test("an EARNES direct call to an ALBA-only RPC is surfaced as forbidden, not hidden by the UI", async () => {

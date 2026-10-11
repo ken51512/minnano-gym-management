@@ -125,11 +125,24 @@ export async function fetchMonthlySnapshot(period: string, deps: MonthlyUiDepend
 export async function fetchSimulationHistory(): Promise<SimulationMonth[]> {
   const client = createBrowserSupabaseClient();
   await resolveBrowserSession(client);
-  const { data, error } = await client.from("MonthlyRecord")
-    .select("year,month,revenueEntries:RevenueEntry(amount),expenseEntries:ExpenseEntry(amount,category:ExpenseCategory(name)),membershipStats:MembershipStats(memberCount,newMembers,cancellations)")
-    .order("year", { ascending: true }).order("month", { ascending: true });
+  // Keep history independent from the selected month. Category names are
+  // only needed for rate labels; all expense totals come from ExpenseEntry.
+  const [{ data, error }, { data: categoryRows, error: categoryError }] = await Promise.all([
+    client.from("MonthlyRecord")
+      .select("year,month,revenueEntries:RevenueEntry(amount),expenseEntries:ExpenseEntry(amount,categoryId),membershipStats:MembershipStats(memberCount,newMembers,cancellations)")
+      .order("year", { ascending: true }).order("month", { ascending: true }),
+    client.from("ExpenseCategory").select("id,name"),
+  ]);
   if (error) throw error;
   if (!Array.isArray(data)) return [];
+  const categoryNames = new Map<string, string>();
+  if (!categoryError && Array.isArray(categoryRows)) {
+    for (const raw of categoryRows) {
+      if (raw && typeof raw === "object" && typeof (raw as Record<string, unknown>).id === "string" && typeof (raw as Record<string, unknown>).name === "string") {
+        categoryNames.set((raw as Record<string, unknown>).id as string, (raw as Record<string, unknown>).name as string);
+      }
+    }
+  }
   const one = (value: unknown): Record<string, unknown> | null => Array.isArray(value) ? (value.length === 1 && value[0] && typeof value[0] === "object" ? value[0] as Record<string, unknown> : null) : value && typeof value === "object" ? value as Record<string, unknown> : null;
   const rows: SimulationMonth[] = [];
   for (const raw of data) {
@@ -140,8 +153,9 @@ export async function fetchSimulationHistory(): Promise<SimulationMonth[]> {
     const expenseAmounts = amounts(row.expenseEntries);
     const categoryAmounts = Array.isArray(row.expenseEntries) ? row.expenseEntries.flatMap((item) => {
       if (!item || typeof item !== "object" || !Number.isInteger((item as Record<string, unknown>).amount)) return [];
-      const category = one((item as Record<string, unknown>).category);
-      return category && typeof category.name === "string" ? [{ categoryName: category.name, amount: (item as Record<string, unknown>).amount as number }] : [];
+      const categoryId = (item as Record<string, unknown>).categoryId;
+      const categoryName = typeof categoryId === "string" ? categoryNames.get(categoryId) : undefined;
+      return categoryName ? [{ categoryName, amount: (item as Record<string, unknown>).amount as number }] : [];
     }) : [];
     if (!Number.isInteger(row.year) || !Number.isInteger(row.month)) continue;
     rows.push({ year: row.year as number, month: row.month as number, memberCount: stats && (stats.memberCount === null || Number.isInteger(stats.memberCount)) ? stats.memberCount as number | null : null, newMembers: stats && (stats.newMembers === null || Number.isInteger(stats.newMembers)) ? stats.newMembers as number | null : null, cancellations: stats && (stats.cancellations === null || Number.isInteger(stats.cancellations)) ? stats.cancellations as number | null : null, revenueAmounts: amounts(row.revenueEntries), expenseAmounts, expenseTotal: sumEnteredExpenseAmounts(expenseAmounts), expenseCategoryAmounts: categoryAmounts });
