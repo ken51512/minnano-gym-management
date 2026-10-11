@@ -4,6 +4,8 @@ export type SimulationMonth = {
   memberCount: number | null;
   revenueAmounts: number[];
   expenseAmounts: number[];
+  /** Total of every entered expense entry for this month, including fixed categories. */
+  expenseTotal?: number | null;
   expenseCategoryAmounts?: { categoryName: string; amount: number }[];
   newMembers?: number | null;
   cancellations?: number | null;
@@ -35,7 +37,9 @@ export function averageMemberUnitPrice(months: readonly SimulationMonth[]): numb
 }
 
 export function averageExpense(months: readonly SimulationMonth[]): number | null {
-  const values = months.filter((month) => month.expenseAmounts.length > 0).map((month) => sum(month.expenseAmounts));
+  const values = months
+    .map((month) => month.expenseTotal === undefined ? (month.expenseAmounts.length > 0 ? sum(month.expenseAmounts) : null) : month.expenseTotal)
+    .filter((total): total is number => total !== null);
   return values.length > 0 ? values.reduce((total, value) => total + value, 0) / values.length : null;
 }
 

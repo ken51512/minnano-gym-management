@@ -136,13 +136,14 @@ export async function fetchSimulationHistory(): Promise<SimulationMonth[]> {
     const row = raw as Record<string, unknown>;
     const stats = one(row.membershipStats);
     const amounts = (value: unknown) => Array.isArray(value) ? value.flatMap((item) => item && typeof item === "object" && Number.isInteger((item as Record<string, unknown>).amount) ? [(item as Record<string, unknown>).amount as number] : []) : [];
+    const expenseAmounts = amounts(row.expenseEntries);
     const categoryAmounts = Array.isArray(row.expenseEntries) ? row.expenseEntries.flatMap((item) => {
       if (!item || typeof item !== "object" || !Number.isInteger((item as Record<string, unknown>).amount)) return [];
       const category = one((item as Record<string, unknown>).category);
       return category && typeof category.name === "string" ? [{ categoryName: category.name, amount: (item as Record<string, unknown>).amount as number }] : [];
     }) : [];
     if (!Number.isInteger(row.year) || !Number.isInteger(row.month)) continue;
-    rows.push({ year: row.year as number, month: row.month as number, memberCount: stats && (stats.memberCount === null || Number.isInteger(stats.memberCount)) ? stats.memberCount as number | null : null, newMembers: stats && (stats.newMembers === null || Number.isInteger(stats.newMembers)) ? stats.newMembers as number | null : null, cancellations: stats && (stats.cancellations === null || Number.isInteger(stats.cancellations)) ? stats.cancellations as number | null : null, revenueAmounts: amounts(row.revenueEntries), expenseAmounts: amounts(row.expenseEntries), expenseCategoryAmounts: categoryAmounts });
+    rows.push({ year: row.year as number, month: row.month as number, memberCount: stats && (stats.memberCount === null || Number.isInteger(stats.memberCount)) ? stats.memberCount as number | null : null, newMembers: stats && (stats.newMembers === null || Number.isInteger(stats.newMembers)) ? stats.newMembers as number | null : null, cancellations: stats && (stats.cancellations === null || Number.isInteger(stats.cancellations)) ? stats.cancellations as number | null : null, revenueAmounts: amounts(row.revenueEntries), expenseAmounts, expenseTotal: expenseAmounts.length > 0 ? expenseAmounts.reduce((total, amount) => total + amount, 0) : null, expenseCategoryAmounts: categoryAmounts });
   }
   return rows;
 }

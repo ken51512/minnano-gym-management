@@ -12,6 +12,31 @@ test("simulation averages entered months and keeps explicit zero expenses", () =
   assert.equal(averageExpense(months), 100000);
 });
 
+test("average expense includes every category, including rent, and matches the monthly total", () => {
+  const month = {
+    year: 2026,
+    month: 8,
+    memberCount: 60,
+    revenueAmounts: [600000],
+    expenseAmounts: [100000, 20000, 150000, 8800, 5000, 30000, 12000, 7000, 4000, 3000],
+    expenseTotal: 339800,
+    expenseCategoryAmounts: [
+      { categoryName: "家賃", amount: 100000 },
+      { categoryName: "手数料（スグラム）", amount: 20000 },
+      { categoryName: "人件費", amount: 150000 },
+      { categoryName: "Wi-Fi", amount: 8800 },
+      { categoryName: "携帯", amount: 5000 },
+      { categoryName: "広告費", amount: 30000 },
+      { categoryName: "電気代", amount: 12000 },
+      { categoryName: "水道代", amount: 7000 },
+      { categoryName: "ガス代", amount: 4000 },
+      { categoryName: "その他", amount: 3000 },
+    ],
+  };
+  assert.equal(month.expenseAmounts.reduce((total, amount) => total + amount, 0), month.expenseTotal);
+  assert.equal(averageExpense([month]), 339800);
+});
+
 test("simulation returns no result when either baseline is unavailable", () => {
   assert.equal(calculateSimulation(60, [{ ...months[0], expenseAmounts: [] }]), null);
 });
