@@ -7,7 +7,7 @@ import { canRegisterExpenseItem, canSaveExpenseAmount, expenseItemLimit } from "
 import { isValidTargetYear, loadRememberedTargetYear, saveRememberedTargetYear, targetPeriod } from "@/lib/target-year-core";
 import { fetchMonthlySnapshot, fetchSimulationHistory, fetchVerifiedSession, postMonthlyMutation, resolveVerifiedSession, signInWithBrowserPassword, signOutBrowserSession } from "@/lib/monthly-ui-client";
 import type { SimulationMonth } from "@/lib/simulator-core";
-import { calculateSimulation } from "@/lib/simulator-core";
+import { calculateSimulation, monthlyMetrics } from "@/lib/simulator-core";
 import { appPath } from "@/lib/app-path";
 import {
   createPendingMonthlyRequest,
@@ -176,12 +176,10 @@ const dashboardMetrics = [
 function Dashboard({ month, navigate, snapshot, authState }: { month: string; navigate: (screen: Screen) => void; snapshot: ApiSnapshot | null; authState: AuthState }) {
   const revenueEntered = (snapshot?.revenueEntries.length ?? 0) > 0;
   const expensesEntered = (snapshot?.expenseEntries.length ?? 0) > 0;
-  const revenue = revenueEntered ? snapshot!.revenueEntries.reduce((sum, entry) => sum + entry.amount, 0) : null;
-  const expenses = expensesEntered ? snapshot!.expenseEntries.reduce((sum, entry) => sum + entry.amount, 0) : null;
-  const grossProfit = revenue !== null && expenses !== null ? revenue - expenses : null;
   const stats = snapshot?.membershipStats;
-  const moneyValues = [revenue, expenses, grossProfit];
+  const actual = snapshot?.exists ? monthlyMetrics({ year: snapshot.period.year, month: snapshot.period.month, memberCount: stats?.memberCount ?? null, revenueAmounts: snapshot.revenueEntries.map((entry) => entry.amount), expenseAmounts: snapshot.expenseEntries.map((entry) => entry.amount), expenseCategoryAmounts: snapshot.expenseEntries.map((entry) => ({ categoryName: entry.categoryName, amount: entry.amount })), cancellations: stats?.cancellations ?? null }) : null;
   const format = (value: number | null | undefined) => value == null ? "—" : value.toLocaleString();
+  const moneyValues = [actual?.revenue ?? null, actual?.expense ?? null, actual?.operatingProfit ?? null, actual?.albaReward ?? null, actual?.earnesReward ?? null];
   return (
     <div className="screen-stack">
       <ScreenTitle eyebrow="概要" title="ホーム" description="選択した月の保存済みデータを表示します。" month={month} />
@@ -192,11 +190,13 @@ function Dashboard({ month, navigate, snapshot, authState }: { month: string; na
       <section className="section-block" aria-labelledby="dashboard-finance-title">
         <PanelHeading title="月次サマリー" hint={snapshot?.exists ? "選択月の保存済み明細から集計しています。" : "保存済みレコードがある月を選択してください。"} aside={<span className="unit-note">金額：円</span>} />
         <div className="metric-grid dashboard-metrics">
-          {dashboardMetrics.slice(0, 3).map((metric, index) => (
+          {[
+            { label: "売上", icon: "↗" }, { label: "経費", icon: "↘" }, { label: "営業利益", icon: "＝" }, { label: "ALBA報酬", icon: "◇" }, { label: "EarneS報酬", icon: "◇" },
+          ].map((metric, index) => (
             <article className="metric-card" key={metric.label}>
               <div className="metric-card-top"><span className="metric-icon" aria-hidden="true">{metric.icon}</span><span className="metric-label">{metric.label}</span></div>
               <strong className="unavailable-value is-large">{snapshot?.exists ? format(moneyValues[index]) : "—"}</strong>
-              <span className="metric-unit">{metric.unit}</span>
+              <span className="metric-unit">円</span>
             </article>
           ))}
           <article className="metric-card"><div className="metric-card-top"><span className="metric-label">会員数（前月末）</span></div><strong className="unavailable-value is-large">{snapshot?.exists ? format(stats?.memberCount) : "—"}</strong><span className="metric-unit">人</span></article>
@@ -206,6 +206,10 @@ function Dashboard({ month, navigate, snapshot, authState }: { month: string; na
         <div className="metric-grid secondary-metrics">
           <article className="metric-card compact-metric"><span className="metric-label">新規入会</span><strong>{snapshot?.exists ? format(stats?.newMembers) : "—"}</strong><span className="metric-unit">人</span></article>
           <article className="metric-card compact-metric"><span className="metric-label">退会</span><strong>{snapshot?.exists ? format(stats?.cancellations) : "—"}</strong><span className="metric-unit">人</span></article>
+          <article className="metric-card compact-metric"><span className="metric-label">人件費率</span><strong>{snapshot?.exists && actual?.laborRate !== null && actual?.laborRate !== undefined ? `${(actual.laborRate * 100).toFixed(1)}%` : "—"}</strong></article>
+          <article className="metric-card compact-metric"><span className="metric-label">広告費率</span><strong>{snapshot?.exists && actual?.advertisingRate !== null && actual?.advertisingRate !== undefined ? `${(actual.advertisingRate * 100).toFixed(1)}%` : "—"}</strong></article>
+          <article className="metric-card compact-metric"><span className="metric-label">営業利益率</span><strong>{snapshot?.exists && actual?.operatingMargin !== null && actual?.operatingMargin !== undefined ? `${(actual.operatingMargin * 100).toFixed(1)}%` : "—"}</strong></article>
+          <article className="metric-card compact-metric"><span className="metric-label">退会率</span><strong>{snapshot?.exists && actual?.cancellationRate !== null && actual?.cancellationRate !== undefined ? `${(actual.cancellationRate * 100).toFixed(2)}%` : "—"}</strong></article>
         </div>
       </section>
       <div className="dashboard-lower-grid">
@@ -622,22 +626,26 @@ function AnnualComparison({ month, snapshot, history }: { month: string; snapsho
   const [input, setInput] = useState(currentMemberCount === null ? "" : String(currentMemberCount));
   useEffect(() => setInput(currentMemberCount === null ? "" : String(currentMemberCount)), [currentMemberCount]);
   const simulationMembers = /^\d+$/.test(input) ? Number(input) : null;
-  const current: SimulationMonth | null = snapshot?.exists ? { year: snapshot.period.year, month: snapshot.period.month, memberCount: currentMemberCount, revenueAmounts: snapshot.revenueEntries.map((entry) => entry.amount), expenseAmounts: snapshot.expenseEntries.map((entry) => entry.amount) } : null;
+  const current: SimulationMonth | null = snapshot?.exists ? { year: snapshot.period.year, month: snapshot.period.month, memberCount: currentMemberCount, revenueAmounts: snapshot.revenueEntries.map((entry) => entry.amount), expenseAmounts: snapshot.expenseEntries.map((entry) => entry.amount), expenseCategoryAmounts: snapshot.expenseEntries.map((entry) => ({ categoryName: entry.categoryName, amount: entry.amount })), cancellations: snapshot.membershipStats?.cancellations ?? null } : null;
   const result = history && simulationMembers !== null && Number.isSafeInteger(simulationMembers) && simulationMembers >= 0 ? calculateSimulation(simulationMembers, history, current) : null;
   const formatMoney = (value: number | null | undefined) => value === null || value === undefined ? "—" : `¥${Math.round(value).toLocaleString()}`;
+  const formatRate = (value: number | null | undefined, digits = 1) => value === null || value === undefined ? "—" : `${(value * 100).toFixed(digits)}%`;
   const scenarioRows = ["現在", "60", "70", "80", "90", "100"].map((label) => ({ label, members: label === "現在" ? currentMemberCount : Number(label) }));
+  const trendRows = history?.map((item) => ({ item, metrics: monthlyMetrics(item) })) ?? [];
   return (
     <div className="screen-stack">
-      <ScreenTitle eyebrow="比較・年間" title="経営シミュレータ" description="実績から基準値を計算し、会員数の変化を試算します。" month={month} />
+      <ScreenTitle eyebrow="比較・年間" title="推移／経営シミュレータ" description="実績から経営指標を確認し、会員数の変化を試算します。" month={month} />
       <section className="panel">
         <PanelHeading title="シミュレーション会員数" hint="現在会員数を初期値にしています。入力値は実績データを変更しません。" />
         <div className="simulator-input-row"><label className="field"><span>会員数（人）</span><input type="number" min="0" step="1" value={input} onChange={(event) => setInput(event.target.value)} /></label><div className="simulator-step-buttons">{[1, 5, 10].map((step) => <button key={step} type="button" className="secondary-button" onClick={() => setInput(String(Math.max(0, (simulationMembers ?? 0) + step)))}>＋{step}</button>)}</div></div>
       </section>
       <section className="panel">
-        <PanelHeading title="自動算出結果" hint="会員数または売上が未入力の月、経費未入力の月は平均対象外です。" />
-        {!result ? <p className="connection-notice" role="status">実績データ不足</p> : <div className="simulator-results"><div className="result-row"><span>平均会員単価</span><strong>{formatMoney(result.averageMemberUnitPrice)}</strong></div><div className="result-row"><span>平均経費</span><strong>{formatMoney(result.averageExpense)}</strong></div><div className="result-row"><span>想定売上</span><strong>{formatMoney(result.revenue)}</strong></div><div className="result-row"><span>想定経費</span><strong>{formatMoney(result.expense)}</strong></div><div className="result-row"><span>想定粗利</span><strong>{formatMoney(result.grossProfit)}</strong></div><div className="result-row"><span>粗利率</span><strong>{result.grossMargin === null ? "—" : `${(result.grossMargin * 100).toFixed(1)}%`}</strong></div><div className="result-row"><span>ALBA報酬</span><strong>{formatMoney(result.albaReward)}</strong></div><div className="result-row"><span>EarneS報酬</span><strong>{formatMoney(result.earnesReward)}</strong></div><div className="result-row"><span>EarneS報酬率</span><strong>{result.earnesRewardRate === null ? "—" : `${(result.earnesRewardRate * 100).toFixed(1)}%`}</strong></div><div className="result-row"><span>現在会員数との差</span><strong>{result.memberDifference === null ? "—" : `${result.memberDifference.toLocaleString()}人`}</strong></div><div className="result-row"><span>現在実績との差額</span><strong>{formatMoney(result.currentDifference)}</strong></div></div>}
+        <PanelHeading title="自動算出結果" hint="未入力月は除外し、明示した0円は平均に含めます。" />
+        {!result ? <p className="connection-notice" role="status">実績データ不足</p> : <div className="simulator-results"><div className="result-row"><span>平均会員単価</span><strong>{formatMoney(result.averageMemberUnitPrice)}</strong></div><div className="result-row"><span>平均経費</span><strong>{formatMoney(result.averageExpense)}</strong></div><div className="result-row"><span>想定売上</span><strong>{formatMoney(result.revenue)}</strong></div><div className="result-row"><span>想定経費</span><strong>{formatMoney(result.expense)}</strong></div><div className="result-row"><span>営業利益</span><strong>{formatMoney(result.grossProfit)}</strong></div><div className="result-row"><span>営業利益率</span><strong>{formatRate(result.operatingMargin)}</strong></div><div className="result-row"><span>ALBA報酬</span><strong>{formatMoney(result.albaReward)}</strong></div><div className="result-row"><span>EarneS報酬</span><strong>{formatMoney(result.earnesReward)}</strong></div><div className="result-row"><span>EarneS報酬率</span><strong>{formatRate(result.earnesRewardRate)}</strong></div><div className="result-row"><span>現在会員数との差</span><strong>{result.memberDifference === null ? "—" : `${result.memberDifference.toLocaleString()}人`}</strong></div><div className="result-row"><span>現在実績との差額</span><strong>{formatMoney(result.currentDifference)}</strong></div></div>}
       </section>
-      <section className="panel"><PanelHeading title="会員数別比較" hint="現在・60・70・80・90・100名を比較します。" /><div className="desktop-table-scroll"><table className="data-table comparison-table"><thead><tr><th scope="col">会員数</th><th scope="col">想定売上</th><th scope="col">想定経費</th><th scope="col">想定粗利</th><th scope="col">ALBA報酬</th><th scope="col">EarneS報酬</th></tr></thead><tbody>{scenarioRows.map((row) => { const item = history && row.members !== null ? calculateSimulation(row.members, history, current) : null; return <tr key={row.label}><th scope="row">{row.label}{row.label !== "現在" ? "名" : ""}</th><td>{item ? formatMoney(item.revenue) : "実績データ不足"}</td><td>{item ? formatMoney(item.expense) : "実績データ不足"}</td><td>{item ? formatMoney(item.grossProfit) : "実績データ不足"}</td><td>{item ? formatMoney(item.albaReward) : "実績データ不足"}</td><td>{item ? formatMoney(item.earnesReward) : "実績データ不足"}</td></tr>; })}</tbody></table></div></section>
+      <section className="panel"><PanelHeading title="会員数別比較" hint="現在・60・70・80・90・100名を同じ計算式で比較します。" /><div className="desktop-table-scroll"><table className="data-table comparison-table"><thead><tr><th scope="col">会員数</th><th scope="col">想定売上</th><th scope="col">想定経費</th><th scope="col">営業利益</th><th scope="col">営業利益率</th><th scope="col">ALBA報酬</th><th scope="col">EarneS報酬</th><th scope="col">EarneS報酬率</th></tr></thead><tbody>{scenarioRows.map((row) => { const item = history && row.members !== null ? calculateSimulation(row.members, history, current) : null; return <tr key={row.label}><th scope="row">{row.label}{row.label !== "現在" ? "名" : ""}</th><td>{item ? formatMoney(item.revenue) : "実績データ不足"}</td><td>{item ? formatMoney(item.expense) : "実績データ不足"}</td><td>{item ? formatMoney(item.grossProfit) : "実績データ不足"}</td><td>{item ? formatRate(item.operatingMargin) : "実績データ不足"}</td><td>{item ? formatMoney(item.albaReward) : "実績データ不足"}</td><td>{item ? formatMoney(item.earnesReward) : "実績データ不足"}</td><td>{item ? formatRate(item.earnesRewardRate) : "実績データ不足"}</td></tr>; })}</tbody></table></div></section>
+      <section className="panel"><PanelHeading title="経営推移" hint="入力済みの月を時系列で表示します。" /><div className="desktop-table-scroll"><table className="data-table comparison-table"><thead><tr><th scope="col">月</th><th scope="col">売上</th><th scope="col">経費</th><th scope="col">営業利益</th><th scope="col">ALBA報酬</th><th scope="col">EarneS報酬</th><th scope="col">人件費率</th><th scope="col">広告費率</th><th scope="col">営業利益率</th></tr></thead><tbody>{trendRows.map(({ item, metrics }) => <tr key={`${item.year}-${item.month}`}><th scope="row">{item.year}-{String(item.month).padStart(2, "0")}</th><td>{formatMoney(metrics.revenue)}</td><td>{formatMoney(metrics.expense)}</td><td>{formatMoney(metrics.operatingProfit)}</td><td>{formatMoney(metrics.albaReward)}</td><td>{formatMoney(metrics.earnesReward)}</td><td>{formatRate(metrics.laborRate)}</td><td>{formatRate(metrics.advertisingRate)}</td><td>{formatRate(metrics.operatingMargin)}</td></tr>)}</tbody></table></div>{trendRows.length === 0 && <p className="connection-notice" role="status">推移データがありません。</p>}</section>
+      <section className="panel"><PanelHeading title="会員推移" hint="会員数・入会・退会と退会率を月別に表示します。" /><div className="desktop-table-scroll"><table className="data-table comparison-table"><thead><tr><th scope="col">月</th><th scope="col">会員数（前月末）</th><th scope="col">新規入会</th><th scope="col">退会</th><th scope="col">退会率</th></tr></thead><tbody>{trendRows.map(({ item, metrics }) => <tr key={`${item.year}-${item.month}`}><th scope="row">{item.year}-{String(item.month).padStart(2, "0")}</th><td>{item.memberCount === null || item.memberCount === undefined ? "—" : `${item.memberCount}人`}</td><td>{item.newMembers === null || item.newMembers === undefined ? "—" : `${item.newMembers}人`}</td><td>{item.cancellations === null || item.cancellations === undefined ? "—" : `${item.cancellations}人`}</td><td>{formatRate(metrics.cancellationRate, 2)}</td></tr>)}</tbody></table></div>{trendRows.length === 0 && <p className="connection-notice" role="status">会員推移データがありません。</p>}</section>
     </div>
   );
 }
