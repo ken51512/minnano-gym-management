@@ -63,7 +63,7 @@ export async function callMonthlyChangeRpc(
   change: MonthlyChange,
   requestId: string,
 ): Promise<void> {
-  await invokeMonthlyRpc(rpc, "apply_monthly_change", {
+  await invokeMonthlyRpc(rpc, change.type === "membershipStats" ? "apply_membership_stats" : "apply_monthly_change", {
     p_year: period.year,
     p_month: period.month,
     p_change: change,

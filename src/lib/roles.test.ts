@@ -2,9 +2,9 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { canEditFinancials, canEditMembershipStats, canUnlockClosing, ROLES } from "./roles.ts";
 
-test("EARNES alone can edit membership statistics", () => {
+test("ALBA_ADMIN and EARNES can edit membership statistics", () => {
   assert.equal(canEditMembershipStats(ROLES.EARNES), true);
-  assert.equal(canEditMembershipStats(ROLES.ALBA_ADMIN), false);
+  assert.equal(canEditMembershipStats(ROLES.ALBA_ADMIN), true);
 });
 
 test("financial edits and closing unlocks remain ALBA_ADMIN only", () => {
@@ -20,7 +20,7 @@ test("invalid roles cannot receive membership edit permission", () => {
 
 test("server authorization matrix keeps financial, membership, and unlock boundaries separate", () => {
   assert.equal(canEditFinancials(ROLES.ALBA_ADMIN), true);
-  assert.equal(canEditMembershipStats(ROLES.ALBA_ADMIN), false);
+  assert.equal(canEditMembershipStats(ROLES.ALBA_ADMIN), true);
   assert.equal(canUnlockClosing(ROLES.ALBA_ADMIN), true);
 
   assert.equal(canEditFinancials(ROLES.EARNES), false);

@@ -128,13 +128,12 @@ test("role boundaries allow EARNES membership edits and ALBA financial edits onl
   assert.equal(f.state.audits[0]?.actorId, "alba-user");
 });
 
-test("ALBA_ADMIN cannot edit membership statistics", async () => {
+test("ALBA_ADMIN can edit membership statistics", async () => {
   const f = fixture();
   f.actor.current = { id: "alba-user", role: ROLES.ALBA_ADMIN };
-  await assert.rejects(f.service.edit(period, { type: "membershipStats", memberCount: 1, newMembers: 0, cancellations: 0 }),
-    (error: unknown) => error instanceof MonthlyOperationError && error.code === "UNAUTHORIZED");
-  assert.equal(f.state.change, null);
-  assert.equal(f.state.audits.length, 0);
+  await f.service.edit(period, { type: "membershipStats", memberCount: 1, newMembers: 0, cancellations: 0 });
+  assert.equal(f.state.change?.type, "membershipStats");
+  assert.equal(f.state.audits.length, 1);
 });
 
 test("neither role can ordinarily edit a closed month", async () => {

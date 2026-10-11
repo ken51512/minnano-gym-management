@@ -5,7 +5,9 @@ import type { MonthlyChange } from "@/lib/monthly-service-core";
 import { closingReadiness } from "@/lib/monthly-query-core";
 import { canRegisterExpenseItem, canSaveExpenseAmount, expenseItemLimit } from "@/lib/expense-item-core";
 import { isValidTargetYear, loadRememberedTargetYear, saveRememberedTargetYear, targetPeriod } from "@/lib/target-year-core";
-import { fetchMonthlySnapshot, fetchVerifiedSession, postMonthlyMutation, resolveVerifiedSession, signInWithBrowserPassword, signOutBrowserSession } from "@/lib/monthly-ui-client";
+import { fetchMonthlySnapshot, fetchSimulationHistory, fetchVerifiedSession, postMonthlyMutation, resolveVerifiedSession, signInWithBrowserPassword, signOutBrowserSession } from "@/lib/monthly-ui-client";
+import type { SimulationMonth } from "@/lib/simulator-core";
+import { calculateSimulation } from "@/lib/simulator-core";
 import { appPath } from "@/lib/app-path";
 import {
   createPendingMonthlyRequest,
@@ -222,7 +224,7 @@ function DisabledField({ id, label, helper, type = "text", role = null, value = 
   value?: string;
   onChange?: (value: string) => void;
 }) {
-  const allowed = id.startsWith("member-") ? role === "EARNES" : role === "ALBA_ADMIN";
+  const allowed = id.startsWith("member-") ? role === "EARNES" || role === "ALBA_ADMIN" : role === "ALBA_ADMIN";
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
@@ -305,11 +307,11 @@ function ConnectedMonthlyEntry({ month, role, snapshot, refresh, submitMembershi
       <p className="field-help">{"Sugram 1\u30fbSugram 2\u3068\u305d\u306e\u4ed6\u306e\u5165\u91d1\u3092\u3001\u5185\u5bb9\u3068\u91d1\u984d\u3067\u8a18\u9332\u3057\u307e\u3059\u3002\u305d\u306e\u4ed6\u306f\u8907\u6570\u884c\u767b\u9332\u3067\u304d\u307e\u3059\u3002"}</p>
     </section>}
     <ConnectedExpenseDetails {...expenseProps} month={month} role={role} compact />
-    <section className="panel"><PanelHeading title="会員数集計" hint="対象月の前月末時点の会員数を入力します。" aside={<span className="role-pill role-pill--blue">入力担当：EarneS</span>} />
+    <section className="panel"><PanelHeading title="会員数集計" hint="対象月の前月末時点の会員数を入力します。" aside={<span className="role-pill role-pill--blue">入力担当：ALBA_ADMIN / EarneS</span>} />
       <p>基準日: {month || "対象月を選択してください"} の前月末</p>
       {snapshot?.membershipStats && <p className="field-help">現在保存済み: 会員 {snapshot.membershipStats.memberCount ?? "未入力"} / 新規 {snapshot.membershipStats.newMembers ?? "未入力"} / 退会 {snapshot.membershipStats.cancellations ?? "未入力"}</p>}
       <div className="field-grid field-grid--three">{readField("memberCount", "member-count", "会員数（前月末）")}{readField("newMembers", "member-new", "新規入会数")}{readField("cancellations", "member-cancel", "退会数")}</div>
-      {role === "EARNES" && <div className="panel-actions"><button type="button" className="secondary-button" onClick={() => void refresh()} disabled={!month || saveState === "saving"}>最新状態を再取得</button><button type="button" className="primary-button" onClick={() => void submitMembership()} disabled={editRole !== "EARNES"}>{saveState === "saving" ? "保存中…" : "会員数を保存"}</button></div>}
+      {(role === "EARNES" || role === "ALBA_ADMIN") && <div className="panel-actions"><button type="button" className="secondary-button" onClick={() => void refresh()} disabled={!month || saveState === "saving"}>最新状態を再取得</button><button type="button" className="primary-button" onClick={() => void submitMembership()} disabled={editRole !== "EARNES" && editRole !== "ALBA_ADMIN"}>{saveState === "saving" ? "保存中…" : "会員数を保存"}</button></div>}
       <p className="save-feedback" role="status">{saveMessage || (saveState === "saved" ? "保存済み" : "")}</p>
     </section>
   </div>;
@@ -336,9 +338,9 @@ function ExistingEntryEditor({ kind, entry, role, saveChange, busy }: {
   </div>;
 }
 
-function ExpenseAmountRow({ rowKey, month, label, amount, canEdit, busy, saveState, saveAmount, nameControl }: {
+function ExpenseAmountRow({ rowKey, month, label, amount, canEdit, busy, saveState, saveAmount, nameControl, onDraftChange }: {
   rowKey: string; month: string; label: string; amount: number | null; canEdit: boolean; busy: boolean; saveState: SaveState;
-  saveAmount: (amount: number) => Promise<boolean>; nameControl?: React.ReactNode;
+  saveAmount: (amount: number) => Promise<boolean>; nameControl?: React.ReactNode; onDraftChange?: (value: string) => void;
 }) {
   const savedValue = amount === null ? "" : String(amount);
   const [value, setValue] = useState(savedValue);
@@ -353,14 +355,14 @@ function ExpenseAmountRow({ rowKey, month, label, amount, canEdit, busy, saveSta
   };
   return <div className="expense-list-row">
     <div className="expense-list-name" title={label}>{label}{nameControl}<span className={`expense-row-status${changed ? " is-dirty" : ""}`}>{status}</span></div>
-    <input className="expense-list-amount" type="number" step="1" inputMode="decimal" aria-label={`${label}の金額（円）`} value={value} onChange={(event) => setValue(event.target.value)} disabled={!canEdit || busy} />
+    <input className="expense-list-amount" type="number" step="1" inputMode="decimal" aria-label={`${label}の金額（円）`} value={value} onChange={(event) => { setValue(event.target.value); onDraftChange?.(event.target.value); }} disabled={!canEdit || busy} />
     <button type="button" className="expense-row-save" onClick={() => void submit()} disabled={!canSave}>{"\u4fdd\u5b58"}</button>
   </div>;
 }
 
-function NamedExpenseAmountRow({ itemId, month, label, amount, canEdit, busy, saveState, saveAmount, renameItem }: {
+function NamedExpenseAmountRow({ itemId, month, label, amount, canEdit, busy, saveState, saveAmount, renameItem, onDraftChange }: {
   itemId: string; month: string; label: string; amount: number | null; canEdit: boolean; busy: boolean; saveState: SaveState;
-  saveAmount: (amount: number) => Promise<boolean>; renameItem: (name: string) => Promise<boolean>;
+  saveAmount: (amount: number) => Promise<boolean>; renameItem: (name: string) => Promise<boolean>; onDraftChange?: (value: string) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(label);
@@ -374,7 +376,7 @@ function NamedExpenseAmountRow({ itemId, month, label, amount, canEdit, busy, sa
         <button type="button" className="expense-rename-save" disabled={busy || !nameChanged || !name.trim()} onClick={async () => { if (await renameItem(name.trim())) setRenaming(false); }}>名前を保存</button>
         <button type="button" className="expense-rename-cancel" disabled={busy} onClick={() => { setName(label); setRenaming(false); }}>取消</button>
       </>;
-  return <ExpenseAmountRow rowKey={itemId} month={month} label={renaming ? "" : label} amount={amount} canEdit={canEdit} busy={busy} saveState={saveState} saveAmount={saveAmount} nameControl={nameControl} />;
+  return <ExpenseAmountRow rowKey={itemId} month={month} label={renaming ? "" : label} amount={amount} canEdit={canEdit} busy={busy} saveState={saveState} saveAmount={saveAmount} nameControl={nameControl} onDraftChange={onDraftChange} />;
 }
 
 function ConnectedExpenseDetails({ month, role, snapshot, refresh, saveChange, registerItem, saveItemAmount, renameItem, saveState, saveMessage, compact = false }: {
@@ -382,13 +384,18 @@ function ConnectedExpenseDetails({ month, role, snapshot, refresh, saveChange, r
 }) {
   const [categoryId, setCategoryId] = useState("");
   const [amount, setAmount] = useState("");
+  const [draftAmounts, setDraftAmounts] = useState<Record<string, string>>({});
   useEffect(() => setAmount(""), [month]);
+  useEffect(() => setDraftAmounts({}), [month]);
   const [itemName, setItemName] = useState("");
   const [itemAmount, setItemAmount] = useState("");
   const category = snapshot?.expenseCategories.find((item) => item.id === categoryId);
   const limit = category ? expenseItemLimit(category.name) : null;
   const count = snapshot?.expenseItems.filter((item) => item.categoryId === categoryId).length ?? 0;
   const busy = saveState === "saving" || saveState === "outcome_unknown";
+  const setDraftAmount = (id: string, value: string) => setDraftAmounts((current) => ({ ...current, [id]: value }));
+  const subtotal = snapshot ? [...snapshot.expenseItems.map((item) => ({ id: item.id, amount: item.amount })), ...snapshot.expenseEntries.filter((entry) => !entry.expenseItemId).map((entry) => ({ id: entry.id, amount: entry.amount }))]
+    .reduce((total, row) => { const raw = Object.hasOwn(draftAmounts, row.id) ? draftAmounts[row.id] : row.amount === null ? "" : String(row.amount); return raw !== "" && /^-?\d+$/.test(raw) ? total + Number(raw) : total; }, 0) : null;
   const addExpense = async () => {
     const description = limit === null ? category?.name : undefined;
     if (!categoryId || !description || !/^-?\d+$/.test(amount) || !Number.isSafeInteger(Number(amount)) || Number(amount) < -2147483648 || Number(amount) > 2147483647) return;
@@ -405,10 +412,11 @@ function ConnectedExpenseDetails({ month, role, snapshot, refresh, saveChange, r
         <PanelHeading title={"\u7d4c\u8cbb\u660e\u7d30"} aside={<span className="role-pill">{"\u7ba1\u7406\u8005"}</span>} />
         <div className="expense-list" aria-label={"\u7d4c\u8cbb\u4e00\u89a7"}>
           <div className="expense-list-header"><span>{"\u9805\u76ee\u540d"}</span><span>{"\u91d1\u984d\uff08\u5186\uff09"}</span><span></span></div>
-          {snapshot.expenseItems.map((item) => <NamedExpenseAmountRow key={item.id} itemId={item.id} month={month} label={item.name} amount={item.amount} canEdit={role === "ALBA_ADMIN" && snapshot.exists && !snapshot.closed} busy={busy} saveState={saveState} saveAmount={(nextAmount) => saveItemAmount(item.id, nextAmount)} renameItem={(nextName) => renameItem(item.id, nextName)} />)}
-          {snapshot.expenseEntries.filter((entry) => !entry.expenseItemId).map((entry) => <ExpenseAmountRow key={entry.id} rowKey={entry.id} month={month} label={entry.description === entry.categoryName ? entry.categoryName : `${entry.categoryName} / ${entry.description}`} amount={entry.amount} canEdit={role === "ALBA_ADMIN" && snapshot.exists && !snapshot.closed} busy={busy} saveState={saveState} saveAmount={(nextAmount) => saveChange({ type: "expenseEntry", operation: "update", id: entry.id, amount: nextAmount })} />)}
+          {snapshot.expenseItems.map((item) => <NamedExpenseAmountRow key={item.id} itemId={item.id} month={month} label={item.name} amount={item.amount} canEdit={role === "ALBA_ADMIN" && snapshot.exists && !snapshot.closed} busy={busy} saveState={saveState} saveAmount={(nextAmount) => saveItemAmount(item.id, nextAmount)} renameItem={(nextName) => renameItem(item.id, nextName)} onDraftChange={(value) => setDraftAmount(item.id, value)} />)}
+          {snapshot.expenseEntries.filter((entry) => !entry.expenseItemId).map((entry) => <ExpenseAmountRow key={entry.id} rowKey={entry.id} month={month} label={entry.description === entry.categoryName ? entry.categoryName : `${entry.categoryName} / ${entry.description}`} amount={entry.amount} canEdit={role === "ALBA_ADMIN" && snapshot.exists && !snapshot.closed} busy={busy} saveState={saveState} saveAmount={(nextAmount) => saveChange({ type: "expenseEntry", operation: "update", id: entry.id, amount: nextAmount })} onDraftChange={(value) => setDraftAmount(entry.id, value)} />)}
           {snapshot.expenseItems.length === 0 && snapshot.expenseEntries.filter((entry) => !entry.expenseItemId).length === 0 && <p className="expense-list-empty">{"\u7d4c\u8cbb\u660e\u7d30\u306f\u307e\u3060\u3042\u308a\u307e\u305b\u3093"}</p>}
         </div>
+        <div className="expense-subtotal" aria-live="polite"><span>経費小計</span><strong>{subtotal === null ? "—" : `¥${subtotal.toLocaleString()}`}</strong></div>
         <p className="expense-list-note">{"\u7a7a\u6b04\u306f\u672a\u5165\u529b\u3002\u0030\u5186\u306f\u5165\u529b\u5024\u3067\u3059\u3002\u91d1\u984d\u306f\u6708\u3054\u3068\u306b\u5165\u529b\u3057\u307e\u3059"}</p>
         {role === "ALBA_ADMIN" && snapshot.exists && !snapshot.closed && <div className={`expense-add-row${limit !== null ? " has-name" : " has-fixed"}`}>
           <label className="expense-add-category"><span>{"\u30ab\u30c6\u30b4\u30ea"}</span><select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">{"\u9078\u629e"}</option>{snapshot.expenseCategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
@@ -442,7 +450,7 @@ function MonthlyEntry({ month, role, navigate }: { month: string; role: Role; na
             <PanelHeading title="対象月と担当" hint="対象月を選んでもデータ照会や保存は行われません。" />
             <div className="assignment-grid">
               <div><span className="field-label">財務入力</span><span className="role-pill">管理者</span><p className="field-help">売上・経費の入力担当</p></div>
-              <div><span className="field-label">会員統計</span><span className="role-pill role-pill--blue">入力担当：EarneS</span><p className="field-help">会員数・新規・退会の入力担当</p></div>
+              <div><span className="field-label">会員統計</span><span className="role-pill role-pill--blue">入力担当：ALBA_ADMIN / EarneS</span><p className="field-help">会員数・新規・退会の入力担当</p></div>
             </div>
           </section>
 
@@ -462,7 +470,7 @@ function MonthlyEntry({ month, role, navigate }: { month: string; role: Role; na
           </section>
 
           <section className="panel">
-            <PanelHeading title="会員統計" hint="会員数は対象月の前月末時点です。" aside={<span className="role-pill role-pill--blue">入力担当：EarneS</span>} />
+            <PanelHeading title="会員統計" hint="会員数は対象月の前月末時点です。" aside={<span className="role-pill role-pill--blue">入力担当：ALBA_ADMIN / EarneS</span>} />
             <div className="date-reference"><span className="state-label">会員数の基準日</span><strong>{month ? `${month} の前月末` : "対象月を選択してください"}</strong><span>対象月が未選択の間、基準日は確定しません。</span></div>
             <div className="field-grid field-grid--three">
               <DisabledField id="member-count" label="会員数（前月末）" helper="0人と未入力は区別します。" type="number" role={role} />
@@ -596,27 +604,27 @@ const comparisonMetrics = [
   { name: "売上", unit: "円" }, { name: "経費", unit: "円" }, { name: "粗利", unit: "円" }, { name: "EarneS報酬", unit: "円" }, { name: "会員数", unit: "人" },
 ];
 
-function AnnualComparison({ month }: { month: string }) {
+function AnnualComparison({ month, snapshot, history }: { month: string; snapshot: ApiSnapshot | null; history: SimulationMonth[] | null }) {
+  const currentMemberCount = snapshot?.membershipStats?.memberCount ?? null;
+  const [input, setInput] = useState(currentMemberCount === null ? "" : String(currentMemberCount));
+  useEffect(() => setInput(currentMemberCount === null ? "" : String(currentMemberCount)), [currentMemberCount]);
+  const simulationMembers = /^\d+$/.test(input) ? Number(input) : null;
+  const current: SimulationMonth | null = snapshot?.exists ? { year: snapshot.period.year, month: snapshot.period.month, memberCount: currentMemberCount, revenueAmounts: snapshot.revenueEntries.map((entry) => entry.amount), expenseAmounts: snapshot.expenseEntries.map((entry) => entry.amount) } : null;
+  const result = history && simulationMembers !== null && Number.isSafeInteger(simulationMembers) && simulationMembers >= 0 ? calculateSimulation(simulationMembers, history, current) : null;
+  const formatMoney = (value: number | null | undefined) => value === null || value === undefined ? "—" : `¥${Math.round(value).toLocaleString()}`;
+  const scenarioRows = ["現在", "60", "70", "80", "90", "100"].map((label) => ({ label, members: label === "現在" ? currentMemberCount : Number(label) }));
   return (
     <div className="screen-stack">
-      <ScreenTitle eyebrow="比較・年間" title="比較・年間" description="期間と指標を切り替えて推移を確認します。" month={month} />
-      <ConnectionNotice />
+      <ScreenTitle eyebrow="比較・年間" title="経営シミュレータ" description="実績から基準値を計算し、会員数の変化を試算します。" month={month} />
       <section className="panel">
-        <PanelHeading title="対象期間" hint="年度の扱いと比較期間は未確定です。" />
-        <div className="period-controls"><div className="period-display"><span className="state-label">比較期間</span><strong>未選択</strong></div><StatusBadge>期間定義未接続</StatusBadge></div>
+        <PanelHeading title="シミュレーション会員数" hint="現在会員数を初期値にしています。入力値は実績データを変更しません。" />
+        <div className="simulator-input-row"><label className="field"><span>会員数（人）</span><input type="number" min="0" step="1" value={input} onChange={(event) => setInput(event.target.value)} /></label><div className="simulator-step-buttons">{[1, 5, 10].map((step) => <button key={step} type="button" className="secondary-button" onClick={() => setInput(String(Math.max(0, (simulationMembers ?? 0) + step)))}>＋{step}</button>)}</div></div>
       </section>
       <section className="panel">
-        <PanelHeading title="指標" hint="金額と人数を分けて表示します。" />
-        <div className="comparison-metric-pills">{comparisonMetrics.map((metric) => <span key={metric.name}>{metric.name}<small>{metric.unit}</small></span>)}</div>
+        <PanelHeading title="自動算出結果" hint="会員数または売上が未入力の月、経費未入力の月は平均対象外です。" />
+        {!result ? <p className="connection-notice" role="status">実績データ不足</p> : <div className="simulator-results"><div className="result-row"><span>平均会員単価</span><strong>{formatMoney(result.averageMemberUnitPrice)}</strong></div><div className="result-row"><span>平均経費</span><strong>{formatMoney(result.averageExpense)}</strong></div><div className="result-row"><span>想定売上</span><strong>{formatMoney(result.revenue)}</strong></div><div className="result-row"><span>想定経費</span><strong>{formatMoney(result.expense)}</strong></div><div className="result-row"><span>想定粗利</span><strong>{formatMoney(result.grossProfit)}</strong></div><div className="result-row"><span>粗利率</span><strong>{result.grossMargin === null ? "—" : `${(result.grossMargin * 100).toFixed(1)}%`}</strong></div><div className="result-row"><span>ALBA報酬</span><strong>{formatMoney(result.albaReward)}</strong></div><div className="result-row"><span>EarneS報酬</span><strong>{formatMoney(result.earnesReward)}</strong></div><div className="result-row"><span>EarneS報酬率</span><strong>{result.earnesRewardRate === null ? "—" : `${(result.earnesRewardRate * 100).toFixed(1)}%`}</strong></div><div className="result-row"><span>現在会員数との差</span><strong>{result.memberDifference === null ? "—" : `${result.memberDifference.toLocaleString()}人`}</strong></div><div className="result-row"><span>現在実績との差額</span><strong>{formatMoney(result.currentDifference)}</strong></div></div>}
       </section>
-      <section className="panel">
-        <PanelHeading title="推移" hint="実データを取得していないため、グラフは表示しません。" />
-        <div className="chart-placeholder"><div className="chart-axis" aria-hidden="true"><span>—</span><span>—</span><span>—</span><span>—</span></div><EmptyState title="推移データ未接続" detail="架空の数値やグラフは表示していません。" /></div>
-      </section>
-      <section className="panel">
-        <PanelHeading title="数値一覧" hint="前月比の非ゼロ値の算定式は未確定です。" />
-        <div className="desktop-table-scroll"><table className="data-table comparison-table"><thead><tr><th scope="col">指標</th><th scope="col">現在</th><th scope="col">比較対象</th><th scope="col">差分</th></tr></thead><tbody>{comparisonMetrics.map((metric) => <tr key={metric.name}><th scope="row">{metric.name}<small>{metric.unit}</small></th><td>—<small>未取得</small></td><td>—<small>未取得</small></td><td>—<small>算定式未確定</small></td></tr>)}</tbody></table></div>
-      </section>
+      <section className="panel"><PanelHeading title="会員数別比較" hint="現在・60・70・80・90・100名を比較します。" /><div className="desktop-table-scroll"><table className="data-table comparison-table"><thead><tr><th scope="col">会員数</th><th scope="col">想定売上</th><th scope="col">想定経費</th><th scope="col">想定粗利</th><th scope="col">ALBA報酬</th><th scope="col">EarneS報酬</th></tr></thead><tbody>{scenarioRows.map((row) => { const item = history && row.members !== null ? calculateSimulation(row.members, history, current) : null; return <tr key={row.label}><th scope="row">{row.label}{row.label !== "現在" ? "名" : ""}</th><td>{item ? formatMoney(item.revenue) : "実績データ不足"}</td><td>{item ? formatMoney(item.expense) : "実績データ不足"}</td><td>{item ? formatMoney(item.grossProfit) : "実績データ不足"}</td><td>{item ? formatMoney(item.albaReward) : "実績データ不足"}</td><td>{item ? formatMoney(item.earnesReward) : "実績データ不足"}</td></tr>; })}</tbody></table></div></section>
     </div>
   );
 }
@@ -677,14 +685,14 @@ function MobileMoreMenu({ open, onNavigate, onLogout, role, authState }: { open:
   );
 }
 
-function ScreenContent({ screen, month, role, navigate, onLogin, authState, authMessage, entryProps, expenseProps, reviewProps }: { screen: Screen; month: string; role: Role; navigate: (screen: Screen) => void; onLogin: (email: string, password: string) => Promise<void>; authState: AuthState; authMessage: string; entryProps: Omit<React.ComponentProps<typeof ConnectedMonthlyEntry>, "month" | "role" | "expenseProps">; expenseProps: Omit<React.ComponentProps<typeof ConnectedExpenseDetails>, "month" | "role">; reviewProps: Omit<React.ComponentProps<typeof ConnectedMonthlyReview>, "month" | "role" | "authState"> }) {
+function ScreenContent({ screen, month, role, navigate, onLogin, authState, authMessage, entryProps, expenseProps, reviewProps, snapshot, simulationHistory }: { screen: Screen; month: string; role: Role; navigate: (screen: Screen) => void; onLogin: (email: string, password: string) => Promise<void>; authState: AuthState; authMessage: string; entryProps: Omit<React.ComponentProps<typeof ConnectedMonthlyEntry>, "month" | "role" | "expenseProps">; expenseProps: Omit<React.ComponentProps<typeof ConnectedExpenseDetails>, "month" | "role">; reviewProps: Omit<React.ComponentProps<typeof ConnectedMonthlyReview>, "month" | "role" | "authState">; snapshot: ApiSnapshot | null; simulationHistory: SimulationMonth[] | null }) {
   switch (screen) {
     case "login": return <LoginFrame onLogin={onLogin} authState={authState} authMessage={authMessage} />;
     case "dashboard": return <Dashboard month={month} navigate={navigate} snapshot={entryProps.snapshot} authState={authState} />;
     case "entry": return <ConnectedMonthlyEntry {...entryProps} expenseProps={expenseProps} month={month} role={role} />;
     case "expenses": return <ConnectedExpenseDetails {...expenseProps} month={month} role={role} />;
     case "review": return <ConnectedMonthlyReview {...reviewProps} month={month} role={role} authState={authState} />;
-    case "comparison": return <AnnualComparison month={month} />;
+    case "comparison": return <AnnualComparison month={month} snapshot={snapshot} history={simulationHistory} />;
     case "history": return <AuditHistory month={month} />;
     case "management": return <ManagementFrame role={role} />;
   }
@@ -699,6 +707,7 @@ export default function Home() {
   const [authState, setAuthState] = useState<AuthState>("checking");
   const [authMessage, setAuthMessage] = useState("");
   const [snapshot, setSnapshot] = useState<ApiSnapshot | null>(null);
+  const [simulationHistory, setSimulationHistory] = useState<SimulationMonth[] | null>(null);
   const [membershipValues, setMembershipValues] = useState({ memberCount: "", newMembers: "", cancellations: "" });
   const [unlockReason, setUnlockReason] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -834,6 +843,11 @@ export default function Home() {
     if (authState === "ready" && targetMonth) void loadSnapshot(targetMonth);
   }, [authState, targetMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (authState !== "ready") { setSimulationHistory(null); return; }
+    void fetchSimulationHistory().then(setSimulationHistory).catch(() => setSimulationHistory(null));
+  }, [authState]);
+
   const login = async (email: string, password: string) => {
     setAuthMessage("");
     try {
@@ -877,7 +891,7 @@ export default function Home() {
     let pending: PendingMonthlyRequest | null = null;
     try {
       const sessionRole = await refreshSession();
-      if (sessionRole !== "EARNES") { setAuthMessage("セッションを再認証してください。入力値は保持されています。");  setSaveState("failed"); setSaveMessage("認証を確認できないため保存していません。"); return; }
+      if (sessionRole !== "EARNES" && sessionRole !== "ALBA_ADMIN") { setAuthMessage("セッションを再認証してください。入力値は保持されています。");  setSaveState("failed"); setSaveMessage("認証を確認できないため保存していません。"); return; }
       const currentSnapshot = await loadSnapshot(targetMonth);
       if (!currentSnapshot?.exists) { setSaveState("failed"); setSaveMessage("この月のレコードがないため保存できません。入力値は保持されています。"); return; }
       if (currentSnapshot.closed) { setSaveState("failed"); setSaveMessage("この月は確定済みのため保存できません。入力値は保持されています。"); return; }
@@ -998,8 +1012,8 @@ export default function Home() {
     let pending: PendingMonthlyRequest | null = null;
     try {
       const currentRole = await refreshSession();
-      const expectedRole = change.type === "membershipStats" ? "入力担当：EarneS" : "ALBA_ADMIN";
-      if (currentRole !== expectedRole) {  setAuthMessage("再認証が必要です。編集中の値は保持されています。"); setSaveState("failed"); setSaveMessage("権限を確認できないため保存していません。"); return false; }
+      const allowedChange = change.type === "membershipStats" ? currentRole === "EARNES" || currentRole === "ALBA_ADMIN" : currentRole === "ALBA_ADMIN";
+      if (!allowedChange) {  setAuthMessage("再認証が必要です。編集中の値は保持されています。"); setSaveState("failed"); setSaveMessage("権限を確認できないため保存していません。"); return false; }
       const currentSnapshot = await loadSnapshot(targetMonth);
       if (!currentSnapshot?.exists || currentSnapshot.closed) { setSaveState("failed"); setSaveMessage(currentSnapshot?.closed ? "この月は確定済みです。保存していません。" : "この月のデータを確認できません。保存していません。"); return false; }
       pending = beginMonthlyMutation({ period: { year: Number(match[1]), month: Number(match[2]) }, change });
@@ -1171,7 +1185,7 @@ export default function Home() {
           <button type="button" className="secondary-button" onClick={() => void retryPendingMonthlyMutation()} disabled={authState !== "ready"}>同じ操作を安全に再試行</button>
         </section>}
         <div className="screen-content">{authState === "ready"
-          ? <ScreenContent key={sessionActorId ?? "verified"} screen={screen} month={targetMonth} role={role} navigate={navigate} onLogin={login} authState={authState} authMessage={authMessage} entryProps={entryProps} expenseProps={expenseProps} reviewProps={reviewProps} />
+          ? <ScreenContent key={sessionActorId ?? "verified"} screen={screen} month={targetMonth} role={role} navigate={navigate} onLogin={login} authState={authState} authMessage={authMessage} entryProps={entryProps} expenseProps={expenseProps} reviewProps={reviewProps} snapshot={snapshot} simulationHistory={simulationHistory} />
           : authState === "checking" ? <SessionCheckingFrame /> : <LoginFrame onLogin={login} authState={authState} authMessage={authMessage} />}</div>
         <footer className="app-footer"><span>みんなのジム経営管理</span><span>{saveStatusLabel}</span></footer>
       </main>

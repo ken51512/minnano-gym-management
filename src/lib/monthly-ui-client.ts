@@ -19,6 +19,7 @@ import type { PendingMonthlyRequest } from "./monthly-request-core.ts";
 import { MonthlyOperationError } from "./monthly-service-core.ts";
 import { SafeSupabaseOperationError, classifySupabaseFailure } from "./supabase-health-core.ts";
 import { createBrowserSupabaseClient } from "./supabase-browser.ts";
+import type { SimulationMonth } from "./simulator-core.ts";
 
 export type UiRole = "ALBA_ADMIN" | "EARNES";
 export type UiSession = { id: string; role: UiRole; displayName?: string };
@@ -116,6 +117,27 @@ export async function fetchMonthlySnapshot(period: string, deps: MonthlyUiDepend
     const response = failureResponse(error);
     return { response, body: await readBody(response) };
   }
+}
+
+export async function fetchSimulationHistory(): Promise<SimulationMonth[]> {
+  const client = createBrowserSupabaseClient();
+  await resolveBrowserSession(client);
+  const { data, error } = await client.from("MonthlyRecord")
+    .select("year,month,revenueEntries:RevenueEntry(amount),expenseEntries:ExpenseEntry(amount),membershipStats:MembershipStats(memberCount)")
+    .order("year", { ascending: true }).order("month", { ascending: true });
+  if (error) throw error;
+  if (!Array.isArray(data)) return [];
+  const one = (value: unknown): Record<string, unknown> | null => Array.isArray(value) ? (value.length === 1 && value[0] && typeof value[0] === "object" ? value[0] as Record<string, unknown> : null) : value && typeof value === "object" ? value as Record<string, unknown> : null;
+  const rows: SimulationMonth[] = [];
+  for (const raw of data) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Record<string, unknown>;
+    const stats = one(row.membershipStats);
+    const amounts = (value: unknown) => Array.isArray(value) ? value.flatMap((item) => item && typeof item === "object" && Number.isInteger((item as Record<string, unknown>).amount) ? [(item as Record<string, unknown>).amount as number] : []) : [];
+    if (!Number.isInteger(row.year) || !Number.isInteger(row.month)) continue;
+    rows.push({ year: row.year as number, month: row.month as number, memberCount: stats && (stats.memberCount === null || Number.isInteger(stats.memberCount)) ? stats.memberCount as number | null : null, revenueAmounts: amounts(row.revenueEntries), expenseAmounts: amounts(row.expenseEntries) });
+  }
+  return rows;
 }
 
 async function executeMonthlyMutation(pending: PendingMonthlyRequest, rpc: MonthlyRpcCall): Promise<void> {

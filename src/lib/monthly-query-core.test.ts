@@ -22,7 +22,7 @@ test("role gate maps membership and finance to the existing server role matrix",
   const membership = { type: "membershipStats", memberCount: 0, newMembers: null, cancellations: 0 } as const;
   const revenue = { type: "revenueEntry", operation: "delete", id: "r1" } as const;
   assert.equal(canSubmitMonthlyChange("EARNES", membership), true);
-  assert.equal(canSubmitMonthlyChange("ALBA_ADMIN", membership), false);
+  assert.equal(canSubmitMonthlyChange("ALBA_ADMIN", membership), true);
   assert.equal(canSubmitMonthlyChange("ALBA_ADMIN", revenue), true);
   assert.equal(canSubmitMonthlyChange("EARNES", revenue), false);
 });

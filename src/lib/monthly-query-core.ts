@@ -217,5 +217,5 @@ export async function readMonthlySnapshot(port: MonthlyReadPort, period: MonthPe
 }
 
 export function canSubmitMonthlyChange(role: Role, change: MonthlyChange): boolean {
-  return change.type === "membershipStats" ? role === "EARNES" : role === "ALBA_ADMIN";
+  return change.type === "membershipStats" ? role === "EARNES" || role === "ALBA_ADMIN" : role === "ALBA_ADMIN";
 }
