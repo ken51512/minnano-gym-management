@@ -181,6 +181,9 @@ export async function readMonthlySnapshot(port: MonthlyReadPort, period: MonthPe
     return registered.flatMap((rawItem) => {
       const item = objectValue(rawItem);
       if (!item || !validId(item.id) || !validText(item.name)) return [];
+      const retiredYear = Number.isInteger(item.retiredYear) ? item.retiredYear as number : null;
+      const retiredMonth = Number.isInteger(item.retiredMonth) ? item.retiredMonth as number : null;
+      if (retiredYear !== null && retiredMonth !== null && (retiredYear < period.year || (retiredYear === period.year && retiredMonth <= period.month))) return [];
       const histories = Array.isArray(item.nameHistory) ? item.nameHistory.flatMap((rawHistory) => {
         const history = objectValue(rawHistory);
         return history && validText(history.name) && Number.isInteger(history.year) && (history.year as number) >= 1 && Number.isInteger(history.month) && (history.month as number) >= 1 && (history.month as number) <= 12

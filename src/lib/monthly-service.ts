@@ -9,6 +9,7 @@ import {
   callMonthlyRegisterExpenseItemWithAmountRpc,
   callMonthlySetExpenseItemAmountRpc,
   callMonthlyRenameExpenseItemRpc,
+  callMonthlyRetireExpenseItemRpc,
   callMonthlyFinalizeRpc,
   callMonthlyUnlockRpc,
   type MonthlyRpcCall,
@@ -78,9 +79,13 @@ const expenseItemService = createExpenseItemService({
   async rename(period, itemId, name, requestId) {
     await callMonthlyRenameExpenseItemRpc(createAuthenticatedMonthlyRpc(requestId), period, itemId, name, requestId);
   },
+  async retire(period, itemId, requestId) {
+    await callMonthlyRetireExpenseItemRpc(createAuthenticatedMonthlyRpc(requestId), period, itemId, requestId);
+  },
 });
 
 export const registerMonthlyExpenseItem = expenseItemService.register;
 export const registerMonthlyExpenseItemWithAmount = expenseItemService.registerWithAmount;
 export const setMonthlyExpenseItemAmount = expenseItemService.setAmount;
 export const renameMonthlyExpenseItem = expenseItemService.rename;
+export const retireMonthlyExpenseItem = expenseItemService.retire;

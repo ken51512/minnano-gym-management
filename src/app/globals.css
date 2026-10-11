@@ -397,6 +397,7 @@ p { margin-top: 0; }
 .expense-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
 .expense-row-delete { min-width: 54px; min-height: 34px; padding: 5px 8px; border: 1px solid #e2b8b8; border-radius: 8px; background: #fff7f7; color: #a43b3b; font-size: 12px; font-weight: 700; }
 .expense-row-delete:disabled { opacity: .48; }
+.expense-item-delete { border-color: #d7c2a7; background: #fffaf1; color: #8a5c20; }
 .expense-list-empty, .expense-list-note { margin: 7px 4px; color: var(--muted); font-size: 11px; }
 .expense-add-row { display: grid; align-items: end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .expense-add-row.has-name { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(90px, 120px) auto auto; }

@@ -135,3 +135,9 @@ export async function callMonthlyRenameExpenseItemRpc(rpc: MonthlyRpcCall, perio
     p_year: period.year, p_month: period.month, p_item_id: itemId, p_name: name,
   }, requestId, false, true);
 }
+
+export async function callMonthlyRetireExpenseItemRpc(rpc: MonthlyRpcCall, period: MonthPeriod, itemId: string, requestId: string): Promise<void> {
+  await invokeMonthlyRpc(rpc, "retire_monthly_expense_item", {
+    p_year: period.year, p_month: period.month, p_item_id: itemId,
+  }, requestId, false, true);
+}

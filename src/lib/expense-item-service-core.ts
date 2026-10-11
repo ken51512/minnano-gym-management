@@ -8,6 +8,7 @@ export function createExpenseItemService(deps: {
   register(period: MonthPeriod, categoryId: string, name: string, requestId: string): Promise<void>;
   registerWithAmount(period: MonthPeriod, categoryId: string, name: string, amount: number | null, requestId: string): Promise<void>;
   rename(period: MonthPeriod, itemId: string, name: string, requestId: string): Promise<void>;
+  retire?(period: MonthPeriod, itemId: string, requestId: string): Promise<void>;
   setAmount(period: MonthPeriod, itemId: string, amount: number, requestId: string): Promise<void>;
 }) {
   async function authorize(period: MonthPeriod, requestId: string): Promise<void> {
@@ -39,6 +40,12 @@ export function createExpenseItemService(deps: {
       const normalizedName = normalizeExpenseItemName(name);
       if (!itemId || itemId.length > 200 || !normalizedName || expenseItemNameLength(normalizedName) > 200) throw new MonthlyOperationError("INVALID_CHANGE");
       await deps.rename(period, itemId, normalizedName, requestId);
+    },
+    async retire(period: MonthPeriod, itemId: string, requestId: string): Promise<void> {
+      await authorize(period, requestId);
+      if (!itemId || itemId.length > 200) throw new MonthlyOperationError("INVALID_CHANGE");
+      if (!deps.retire) throw new MonthlyOperationError("INVALID_CHANGE");
+      await deps.retire(period, itemId, requestId);
     },
   };
 }

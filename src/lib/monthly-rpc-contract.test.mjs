@@ -14,6 +14,7 @@ const createMonthSql = readFileSync(new URL("../../supabase/migrations/202610110
 const namedExpenseSql = readFileSync(new URL("../../supabase/migrations/20261013000000_monthly_expense_named_items.sql", import.meta.url), "utf8");
 const expenseNameHistorySql = readFileSync(new URL("../../supabase/migrations/20261014000000_monthly_expense_item_name_history.sql", import.meta.url), "utf8");
 const expenseRegistrationAmountSql = readFileSync(new URL("../../supabase/migrations/20261015000000_monthly_expense_item_registration_amount.sql", import.meta.url), "utf8");
+const expenseRetirementSql = readFileSync(new URL("../../supabase/migrations/20261016000000_retire_monthly_expense_item.sql", import.meta.url), "utf8");
 const priorMonthlyUpdateSql = readFileSync(new URL("../../supabase/migrations/20261007000000_monthly_update_rpc.sql", import.meta.url), "utf8");
 
 test("static RPC contract derives identity and role in the database and denies anonymous execution", () => {
@@ -24,6 +25,21 @@ test("static RPC contract derives identity and role in the database and denies a
   assert.match(rpcSql, /v_role <> 'ALBA_ADMIN'::public\."Role"/);
   assert.match(rpcSql, /REVOKE ALL PRIVILEGES ON FUNCTION public\.apply_monthly_change\(integer, integer, jsonb\) FROM PUBLIC, anon, authenticated/);
   assert.match(rpcSql, /GRANT EXECUTE ON FUNCTION public\.apply_monthly_change\(integer, integer, jsonb\) TO authenticated/);
+});
+
+test("expense item retirement preserves history, removes later entries, and is admin-only", () => {
+  assert.match(expenseRetirementSql, /ADD COLUMN "retiredYear" integer/);
+  assert.match(expenseRetirementSql, /ADD COLUMN "retiredMonth" integer/);
+  assert.match(expenseRetirementSql, /CREATE FUNCTION public\.retire_monthly_expense_item\(/);
+  assert.match(expenseRetirementSql, /JOIN public\."MonthlyRecord" AS m/);
+  assert.match(expenseRetirementSql, /DELETE FROM public\."ExpenseEntry"/);
+  assert.match(expenseRetirementSql, /'ExpenseEntry'/);
+  assert.match(expenseRetirementSql, /UPDATE public\."ExpenseItem"[\s\S]*"retiredYear"/);
+  assert.match(expenseRetirementSql, /'ExpenseItem'/);
+  assert.match(expenseRetirementSql, /'ALBA_ADMIN'::public\."Role"/);
+  assert.match(expenseRetirementSql, /REVOKE ALL PRIVILEGES ON FUNCTION public\.retire_monthly_expense_item/);
+  assert.match(expenseRetirementSql, /GRANT EXECUTE ON FUNCTION public\.retire_monthly_expense_item\(integer,integer,text\) TO authenticated/);
+  assert.doesNotMatch(expenseRetirementSql, /DELETE FROM public\."ExpenseItem"/);
 });
 
 test("static RPC contract locks the period before close checks and scopes entry mutations to it", () => {

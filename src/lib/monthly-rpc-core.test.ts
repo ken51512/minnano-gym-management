@@ -9,6 +9,7 @@ import {
   callMonthlyRegisterExpenseItemWithAmountRpc,
   callMonthlySetExpenseItemAmountRpc,
   callMonthlyRenameExpenseItemRpc,
+  callMonthlyRetireExpenseItemRpc,
   type MonthlyActionRpcArgs,
   type MonthlyChangeRpcArgs,
 } from "./monthly-rpc-core.ts";
@@ -119,12 +120,14 @@ test("named expense RPC adapters forward exact period, name/item, and request id
   await callMonthlyRegisterExpenseItemWithAmountRpc(rpc, { year: 2026, month: 8 }, "category-fixture", "Synthetic Person 3", null, requestId);
   await callMonthlySetExpenseItemAmountRpc(rpc, { year: 2026, month: 9 }, "item-fixture", 0, requestId);
   await callMonthlyRenameExpenseItemRpc(rpc, { year: 2026, month: 10 }, "item-fixture", "Coach B", requestId);
+  await callMonthlyRetireExpenseItemRpc(rpc, { year: 2026, month: 10 }, "item-fixture", requestId);
   assert.deepEqual(calls, [
     { name: "register_monthly_expense_item", args: { p_year: 2026, p_month: 8, p_category_id: "category-fixture", p_name: "Synthetic Person" }, id: requestId },
     { name: "register_monthly_expense_item_with_amount", args: { p_year: 2026, p_month: 8, p_category_id: "category-fixture", p_name: "Synthetic Person 2", p_amount: 0 }, id: requestId },
     { name: "register_monthly_expense_item_with_amount", args: { p_year: 2026, p_month: 8, p_category_id: "category-fixture", p_name: "Synthetic Person 3", p_amount: null }, id: requestId },
     { name: "set_monthly_expense_item_amount", args: { p_year: 2026, p_month: 9, p_item_id: "item-fixture", p_amount: 0 }, id: requestId },
     { name: "rename_monthly_expense_item", args: { p_year: 2026, p_month: 10, p_item_id: "item-fixture", p_name: "Coach B" }, id: requestId },
+    { name: "retire_monthly_expense_item", args: { p_year: 2026, p_month: 10, p_item_id: "item-fixture" }, id: requestId },
   ]);
 });
 

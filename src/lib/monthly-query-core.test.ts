@@ -138,6 +138,18 @@ test("snapshot uses the latest effective name while retaining the same item's mo
   assert.deepEqual([before.expenseItems[0].id, renamed.expenseItems[0].id, later.expenseItems[0].id], ["item-fixed", "item-fixed", "item-fixed"]);
 });
 
+test("retired expense items remain visible before retirement and disappear from the selected month onward", async () => {
+  const port = {
+    async findRecord() { return { data: { expenseEntries: [], revenueEntries: [], monthlyClosing: null }, error: null }; },
+    async listCategories() {
+      return { data: [{ id: "cat-labor", name: "人件費", expenseItems: [{ id: "item-retired", name: "Coach", effectiveYear: 2026, effectiveMonth: 8, retiredYear: 2026, retiredMonth: 10 }] }], error: null };
+    },
+  };
+  assert.equal((await readMonthlySnapshot(port, { year: 2026, month: 9 })).expenseItems.length, 1);
+  assert.equal((await readMonthlySnapshot(port, { year: 2026, month: 10 })).expenseItems.length, 0);
+  assert.equal((await readMonthlySnapshot(port, { year: 2026, month: 11 })).expenseItems.length, 0);
+});
+
 test("same-name expense items keep their amounts separated by item ID", async () => {
   const snapshot = await readMonthlySnapshot({
     async findRecord() {

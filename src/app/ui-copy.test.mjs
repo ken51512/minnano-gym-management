@@ -180,6 +180,8 @@ test("saved expense amounts render per item, reload after save, and draft values
   assert.match(editor, /changed \? "\\u672a\\u4fdd\\u5b58"/);
   assert.match(editor, /amount === null \? "保存" : "修正"/);
   assert.match(editor, /className="expense-row-delete"/);
+  assert.match(editor, /項目削除/);
+  assert.match(editor, /過去月の実績は残ります/);
   assert.match(editor, /const canSave = canSaveExpenseAmount/);
   assert.match(editor, /disabled=\{!canSave\}/);
   assert.doesNotMatch(editor, /className="expense-row-save"[^>]*>\\u[0-9a-f]{4}/i);

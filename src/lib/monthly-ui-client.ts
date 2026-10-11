@@ -12,6 +12,7 @@ import {
   callMonthlyRegisterExpenseItemRpc,
   callMonthlyRegisterExpenseItemWithAmountRpc,
   callMonthlyRenameExpenseItemRpc,
+  callMonthlyRetireExpenseItemRpc,
   callMonthlySetExpenseItemAmountRpc,
   callMonthlyUnlockRpc,
   type MonthlyRpcCall,
@@ -98,7 +99,7 @@ function monthlyReadPort(client: BrowserClient): MonthlyReadPort {
       return { data, error };
     },
     async listCategories(period) {
-      let query = client.from("ExpenseCategory").select("id,name,expenseItems:ExpenseItem(id,name,effectiveYear,effectiveMonth,nameHistory:ExpenseItemNameHistory(year,month,name))").order("name");
+      let query = client.from("ExpenseCategory").select("id,name,expenseItems:ExpenseItem(id,name,effectiveYear,effectiveMonth,retiredYear,retiredMonth,nameHistory:ExpenseItemNameHistory(year,month,name))").order("name");
       if (period) query = query.or(`effectiveYear.lt.${period.year},and(effectiveYear.eq.${period.year},effectiveMonth.lte.${period.month})`, { referencedTable: "ExpenseItem" });
       const { data, error } = await query;
       return { data, error };
@@ -163,6 +164,7 @@ async function executeMonthlyMutation(pending: PendingMonthlyRequest, rpc: Month
   if (body.action === "expense_item_amount" && typeof body.itemId === "string" && typeof body.amount === "number" && Number.isInteger(body.amount)) return callMonthlySetExpenseItemAmountRpc(rpc, period, body.itemId, body.amount, pending.requestId);
   if (body.action === "clear_expense_item_amount" && typeof body.itemId === "string") return callMonthlyClearExpenseItemAmountRpc(rpc, period, body.itemId, pending.requestId);
   if (body.action === "rename_expense_item" && typeof body.itemId === "string" && typeof body.name === "string" && body.name.trim() && expenseItemNameLength(body.name.trim()) <= 200) return callMonthlyRenameExpenseItemRpc(rpc, period, body.itemId, body.name.trim(), pending.requestId);
+  if (body.action === "retire_expense_item" && typeof body.itemId === "string") return callMonthlyRetireExpenseItemRpc(rpc, period, body.itemId, pending.requestId);
   throw new MonthlyOperationError("INVALID_CHANGE");
 }
 
