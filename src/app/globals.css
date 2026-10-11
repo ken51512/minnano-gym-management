@@ -330,7 +330,7 @@ p { margin-top: 0; }
   .optional-row .secondary-button { min-height: 42px; padding: 8px 10px; }
   .save-panel { align-items: flex-start; flex-direction: column; }
   .save-panel .primary-button { width: 100%; }
-  .desktop-table-scroll { display: none; }
+  .desktop-table-scroll { display: block; width: 100%; overflow-x: auto; }
   .expense-card-list, .audit-card-list { display: block; }
   .expense-card-list .empty-state, .audit-card-list .empty-state { min-height: 130px; }
   .expense-total { gap: 8px; }
