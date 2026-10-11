@@ -21,6 +21,7 @@ import type { PendingMonthlyRequest } from "./monthly-request-core.ts";
 import { MonthlyOperationError } from "./monthly-service-core.ts";
 import { SafeSupabaseOperationError, classifySupabaseFailure } from "./supabase-health-core.ts";
 import { createBrowserSupabaseClient } from "./supabase-browser.ts";
+import { sumEnteredExpenseAmounts } from "./expense-total-core.ts";
 import type { SimulationMonth } from "./simulator-core.ts";
 
 export type UiRole = "ALBA_ADMIN" | "EARNES";
@@ -143,7 +144,7 @@ export async function fetchSimulationHistory(): Promise<SimulationMonth[]> {
       return category && typeof category.name === "string" ? [{ categoryName: category.name, amount: (item as Record<string, unknown>).amount as number }] : [];
     }) : [];
     if (!Number.isInteger(row.year) || !Number.isInteger(row.month)) continue;
-    rows.push({ year: row.year as number, month: row.month as number, memberCount: stats && (stats.memberCount === null || Number.isInteger(stats.memberCount)) ? stats.memberCount as number | null : null, newMembers: stats && (stats.newMembers === null || Number.isInteger(stats.newMembers)) ? stats.newMembers as number | null : null, cancellations: stats && (stats.cancellations === null || Number.isInteger(stats.cancellations)) ? stats.cancellations as number | null : null, revenueAmounts: amounts(row.revenueEntries), expenseAmounts, expenseTotal: expenseAmounts.length > 0 ? expenseAmounts.reduce((total, amount) => total + amount, 0) : null, expenseCategoryAmounts: categoryAmounts });
+    rows.push({ year: row.year as number, month: row.month as number, memberCount: stats && (stats.memberCount === null || Number.isInteger(stats.memberCount)) ? stats.memberCount as number | null : null, newMembers: stats && (stats.newMembers === null || Number.isInteger(stats.newMembers)) ? stats.newMembers as number | null : null, cancellations: stats && (stats.cancellations === null || Number.isInteger(stats.cancellations)) ? stats.cancellations as number | null : null, revenueAmounts: amounts(row.revenueEntries), expenseAmounts, expenseTotal: sumEnteredExpenseAmounts(expenseAmounts), expenseCategoryAmounts: categoryAmounts });
   }
   return rows;
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MonthlyChange } from "@/lib/monthly-service-core";
 import { closingReadiness } from "@/lib/monthly-query-core";
+import { sumEnteredExpenseAmounts } from "@/lib/expense-total-core";
 import { canRegisterExpenseItem, canSaveExpenseAmount, expenseItemLimit } from "@/lib/expense-item-core";
 import { isValidTargetYear, loadRememberedTargetYear, saveRememberedTargetYear, targetPeriod } from "@/lib/target-year-core";
 import { fetchMonthlySnapshot, fetchSimulationHistory, fetchVerifiedSession, postMonthlyMutation, resolveVerifiedSession, signInWithBrowserPassword, signOutBrowserSession } from "@/lib/monthly-ui-client";
@@ -416,8 +417,8 @@ function ConnectedExpenseDetails({ month, role, snapshot, refresh, saveChange, r
   const count = snapshot?.expenseItems.filter((item) => item.categoryId === categoryId).length ?? 0;
   const busy = saveState === "saving" || saveState === "outcome_unknown";
   const setDraftAmount = (id: string, value: string) => setDraftAmounts((current) => ({ ...current, [id]: value }));
-  const subtotal = snapshot ? [...snapshot.expenseItems.map((item) => ({ id: item.id, amount: item.amount })), ...snapshot.expenseEntries.filter((entry) => !entry.expenseItemId).map((entry) => ({ id: entry.id, amount: entry.amount }))]
-    .reduce((total, row) => { const raw = Object.hasOwn(draftAmounts, row.id) ? draftAmounts[row.id] : row.amount === null ? "" : String(row.amount); return raw !== "" && /^-?\d+$/.test(raw) ? total + Number(raw) : total; }, 0) : null;
+  const subtotal = snapshot ? sumEnteredExpenseAmounts([...snapshot.expenseItems.map((item) => ({ id: item.id, amount: item.amount })), ...snapshot.expenseEntries.filter((entry) => !entry.expenseItemId).map((entry) => ({ id: entry.id, amount: entry.amount }))]
+    .map((row) => { const raw = Object.hasOwn(draftAmounts, row.id) ? draftAmounts[row.id] : row.amount === null ? "" : String(row.amount); return raw !== "" && /^-?\d+$/.test(raw) ? Number(raw) : null; })) : null;
   const addExpense = async () => {
     const description = limit === null ? category?.name : undefined;
     if (!categoryId || !description || !/^-?\d+$/.test(amount) || !Number.isSafeInteger(Number(amount)) || Number(amount) < -2147483648 || Number(amount) > 2147483647) return;

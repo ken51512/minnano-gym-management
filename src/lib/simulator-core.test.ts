@@ -37,6 +37,12 @@ test("average expense includes every category, including rent, and matches the m
   assert.equal(averageExpense([month]), 339800);
 });
 
+test("monthly simulator expense equals the input subtotal for every persisted entry", () => {
+  const entries = [100000, 150000, 30000, 3000, -2500, 0];
+  const month = { year: 2026, month: 8, memberCount: 60, revenueAmounts: [600000], expenseAmounts: entries, expenseTotal: entries.reduce((total, amount) => total + amount, 0) };
+  assert.equal(month.expenseTotal, averageExpense([month]));
+});
+
 test("simulation returns no result when either baseline is unavailable", () => {
   assert.equal(calculateSimulation(60, [{ ...months[0], expenseAmounts: [] }]), null);
 });

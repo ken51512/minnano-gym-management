@@ -1,3 +1,5 @@
+import { sumEnteredExpenseAmounts } from "./expense-total-core.ts";
+
 export type SimulationMonth = {
   year: number;
   month: number;
@@ -38,7 +40,7 @@ export function averageMemberUnitPrice(months: readonly SimulationMonth[]): numb
 
 export function averageExpense(months: readonly SimulationMonth[]): number | null {
   const values = months
-    .map((month) => month.expenseTotal === undefined ? (month.expenseAmounts.length > 0 ? sum(month.expenseAmounts) : null) : month.expenseTotal)
+    .map((month) => month.expenseTotal === undefined ? sumEnteredExpenseAmounts(month.expenseAmounts) : month.expenseTotal)
     .filter((total): total is number => total !== null);
   return values.length > 0 ? values.reduce((total, value) => total + value, 0) / values.length : null;
 }
@@ -58,7 +60,7 @@ export function monthExpenseCategoryTotal(month: SimulationMonth, categoryName: 
 
 export function monthlyMetrics(month: SimulationMonth) {
   const revenue = month.revenueAmounts.length > 0 ? sum(month.revenueAmounts) : null;
-  const expense = month.expenseAmounts.length > 0 ? sum(month.expenseAmounts) : null;
+  const expense = month.expenseTotal === undefined ? sumEnteredExpenseAmounts(month.expenseAmounts) : month.expenseTotal;
   const operatingProfit = revenue !== null && expense !== null ? revenue - expense : null;
   const alba = month.memberCount === null || month.memberCount === undefined ? null : albaReward(month.memberCount);
   const earnes = operatingProfit === null || alba === null ? null : operatingProfit - alba;
